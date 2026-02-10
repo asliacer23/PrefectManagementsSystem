@@ -23,6 +23,7 @@ interface Profile {
   id: string;
   first_name: string;
   last_name: string;
+  email: string;
 }
 
 export default function AttendancePage() {
@@ -36,12 +37,14 @@ export default function AttendancePage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [attendanceData, profilesData] = await Promise.all([
+      const [attendanceData, prefectsData, allProfilesData] = await Promise.all([
         attendanceService.fetchAttendance(),
         attendanceService.fetchPrefects(),
+        attendanceService.fetchAllProfiles(),
       ]);
       setAttendance(attendanceData as Attendance[]);
-      setProfiles(profilesData as Profile[]);
+      const allProfiles = allProfilesData as Profile[];
+      setProfiles(allProfiles);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {

@@ -7,6 +7,8 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { ThemeProvider } from "@/hooks/useTheme";
 
 import AuthPage from "@/features/auth/pages/AuthPage";
+import ForgotPasswordPage from "@/features/auth/pages/ForgotPasswordPage";
+import ResetPasswordPage from "@/features/auth/pages/ResetPasswordPage";
 import DashboardRouter from "@/features/dashboard/pages/DashboardRouter";
 import UserManagement from "@/features/users/pages/UserManagement";
 import TrainingPage from "@/features/training/pages/TrainingPage";
@@ -52,6 +54,8 @@ const App = () => (
           <BrowserRouter>
             <Routes>
               <Route path="/auth" element={<AuthPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<ProtectedRoute><DashboardRouter /></ProtectedRoute>} />
               <Route path="/users" element={<ProtectedRoute><AdminRoute><UserManagement /></AdminRoute></ProtectedRoute>} />

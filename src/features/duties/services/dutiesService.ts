@@ -240,12 +240,31 @@ export const searchDuties = async (searchTerm: string): Promise<DutyAssignment[]
 };
 
 /**
- * Fetch all prefect profiles for assignment
+ * Fetch all prefect profiles for assignment (users with 'prefect' role)
  */
 export const fetchPrefects = async (): Promise<Array<{ id: string; first_name: string; last_name: string; email: string }>> => {
+  // First, get all user IDs with 'prefect' role
+  const { data: prefectRoles, error: rolesError } = await supabase
+    .from('user_roles')
+    .select('user_id')
+    .eq('role', 'prefect');
+
+  if (rolesError) {
+    throw new Error(rolesError.message || 'Failed to fetch prefect roles');
+  }
+
+  if (!prefectRoles || prefectRoles.length === 0) {
+    return [];
+  }
+
+  // Extract user IDs
+  const prefectIds = prefectRoles.map(r => r.user_id);
+
+  // Fetch profiles for these users
   const { data, error } = await supabase
     .from('profiles')
     .select('id, first_name, last_name, email')
+    .in('id', prefectIds)
     .order('first_name');
 
   if (error) {
@@ -260,7 +279,7 @@ export const fetchPrefects = async (): Promise<Array<{ id: string; first_name: s
  */
 export const parsePrefectIds = (prefectIdStr: string): string[] => {
   if (!prefectIdStr) return [];
-  
+
   try {
     // Try to parse as JSON array
     if (prefectIdStr.startsWith('[')) {
@@ -270,7 +289,7 @@ export const parsePrefectIds = (prefectIdStr: string): string[] => {
   } catch (e) {
     // Not JSON, treat as single ID
   }
-  
+
   // Single UUID
   return [prefectIdStr];
 };

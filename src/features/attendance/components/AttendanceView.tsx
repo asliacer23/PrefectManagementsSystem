@@ -37,6 +37,7 @@ interface Profile {
   id: string;
   first_name: string;
   last_name: string;
+  email: string;
 }
 
 interface AttendanceViewProps {
@@ -105,6 +106,10 @@ export default function AttendanceView({
   const getPrefectName = (prefectId: string) => {
     const profile = profiles.find((p) => p.id === prefectId);
     return profile ? `${profile.first_name} ${profile.last_name}` : 'Unknown';
+  };
+
+  const getPrefectProfile = (prefectId: string) => {
+    return profiles.find((p) => p.id === prefectId);
   };
 
   const getStatusColor = (status: string) => {
@@ -243,34 +248,47 @@ export default function AttendanceView({
           </DialogHeader>
           {selectedRecord && (
             <div className="space-y-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Prefect</p>
-                <p className="font-medium">{getPrefectName(selectedRecord.prefect_id)}</p>
+              <div className="border-b pb-4">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Prefect</p>
+                {getPrefectProfile(selectedRecord.prefect_id) ? (
+                  <div className="mt-2">
+                    <p className="font-semibold text-base">{getPrefectProfile(selectedRecord.prefect_id)?.first_name} {getPrefectProfile(selectedRecord.prefect_id)?.last_name}</p>
+                    <p className="text-sm text-muted-foreground">{getPrefectProfile(selectedRecord.prefect_id)?.email}</p>
+                  </div>
+                ) : (
+                  <p className="text-base text-muted-foreground mt-1">Unknown</p>
+                )}
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Date</p>
-                <p className="font-medium">{new Date(selectedRecord.date).toLocaleDateString()}</p>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Date</p>
+                <p className="font-medium mt-1">{new Date(selectedRecord.date).toLocaleDateString()}</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-muted-foreground">Time In</p>
-                  <p className="font-medium">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Time In</p>
+                  <p className="font-medium mt-1">
                     {selectedRecord.time_in
-                      ? new Date(selectedRecord.time_in).toLocaleTimeString()
-                      : '-'}
+                      ? new Date(selectedRecord.time_in).toLocaleTimeString([], { 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })
+                      : 'Not set'}
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Time Out</p>
-                  <p className="font-medium">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Time Out</p>
+                  <p className="font-medium mt-1">
                     {selectedRecord.time_out
-                      ? new Date(selectedRecord.time_out).toLocaleTimeString()
-                      : '-'}
+                      ? new Date(selectedRecord.time_out).toLocaleTimeString([], { 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })
+                      : 'Not set'}
                   </p>
                 </div>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground mb-2">Status</p>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Status</p>
                 {isAdmin ? (
                   <Select
                     value={selectedRecord.status}
@@ -293,9 +311,9 @@ export default function AttendanceView({
                 )}
               </div>
               {selectedRecord.notes && (
-                <div>
-                  <p className="text-sm text-muted-foreground">Notes</p>
-                  <p className="font-medium text-sm">{selectedRecord.notes}</p>
+                <div className="bg-muted p-3 rounded-md">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Notes</p>
+                  <p className="font-medium text-sm mt-2">{selectedRecord.notes}</p>
                 </div>
               )}
             </div>

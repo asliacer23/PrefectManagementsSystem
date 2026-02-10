@@ -18,7 +18,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { Plus, Trash2, Edit, Eye, Clock, X } from 'lucide-react';
 import * as dutiesService from '../services/dutiesService';
@@ -70,7 +69,7 @@ export default function DutiesCRUD({
   const [selectedDuty, setSelectedDuty] = useState<DutyAssignment | null>(null);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
-    prefect_ids: [] as string[],
+    prefect_id: '',
     title: '',
     description: '',
     duty_date: '',
@@ -81,7 +80,7 @@ export default function DutiesCRUD({
 
   const resetForm = () => {
     setForm({
-      prefect_ids: [],
+      prefect_id: '',
       title: '',
       description: '',
       duty_date: '',
@@ -92,8 +91,8 @@ export default function DutiesCRUD({
   };
 
   const handleCreate = async () => {
-    if (form.prefect_ids.length === 0) {
-      toast.error('Please select at least one prefect');
+    if (!form.prefect_id) {
+      toast.error('Please select a prefect');
       return;
     }
 
@@ -110,7 +109,7 @@ export default function DutiesCRUD({
     setLoading(true);
     try {
       await dutiesService.createDuty(userId, {
-        prefect_ids: form.prefect_ids,
+        prefect_ids: [form.prefect_id],
         title: form.title,
         description: form.description,
         duty_date: form.duty_date,
@@ -219,7 +218,7 @@ export default function DutiesCRUD({
     const prefectIds = dutiesService.parsePrefectIds(duty.prefect_id);
     setSelectedDuty(duty);
     setForm({
-      prefect_ids: prefectIds,
+      prefect_id: prefectIds[0] || '',
       title: duty.title,
       description: duty.description || '',
       duty_date: duty.duty_date,
@@ -246,64 +245,22 @@ export default function DutiesCRUD({
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label className="mb-3 block">Assign Prefects *</Label>
-                <div className="space-y-2 max-h-60 overflow-y-auto border border-border rounded-lg p-3">
-                  {profiles.map((profile) => (
-                    <div key={profile.id} className="flex items-start gap-3">
-                      <Checkbox
-                        id={`prefect-${profile.id}`}
-                        checked={form.prefect_ids.includes(profile.id)}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setForm((p) => ({
-                              ...p,
-                              prefect_ids: [...p.prefect_ids, profile.id],
-                            }));
-                          } else {
-                            setForm((p) => ({
-                              ...p,
-                              prefect_ids: p.prefect_ids.filter((id) => id !== profile.id),
-                            }));
-                          }
-                        }}
-                      />
-                      <label
-                        htmlFor={`prefect-${profile.id}`}
-                        className="flex-1 cursor-pointer"
-                      >
-                        <div className="text-sm font-medium">
-                          {profile.first_name} {profile.last_name}
+                <Label htmlFor="prefect-select">Prefect *</Label>
+                <Select value={form.prefect_id} onValueChange={(v) => setForm({ ...form, prefect_id: v })}>
+                  <SelectTrigger id="prefect-select">
+                    <SelectValue placeholder="Select a prefect" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {profiles.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        <div className="flex flex-col">
+                          <span>{p.first_name} {p.last_name}</span>
+                          <span className="text-xs text-muted-foreground">{p.email}</span>
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          {profile.email}
-                        </div>
-                      </label>
-                    </div>
-                  ))}
-                </div>
-                {form.prefect_ids.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {form.prefect_ids.map((id) => {
-                      const profile = profiles.find((p) => p.id === id);
-                      return (
-                        <Badge key={id} variant="secondary" className="gap-1">
-                          {profile?.first_name} {profile?.last_name}
-                          <button
-                            onClick={() => {
-                              setForm((p) => ({
-                                ...p,
-                                prefect_ids: p.prefect_ids.filter((pid) => pid !== id),
-                              }));
-                            }}
-                            className="ml-1 hover:text-destructive"
-                          >
-                            <X size={12} />
-                          </button>
-                        </Badge>
-                      );
-                    })}
-                  </div>
-                )}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div>

@@ -22,6 +22,7 @@ interface Profile {
   id: string;
   first_name: string;
   last_name: string;
+  email: string;
 }
 
 interface AcademicYear {
@@ -44,13 +45,16 @@ export default function EvaluationsPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [evaluationsData, profilesData, academicYearsData] = await Promise.all([
+      const [evaluationsData, prefectsData, allProfilesData, academicYearsData] = await Promise.all([
         evaluationsService.fetchEvaluations(),
         evaluationsService.fetchPrefects(),
+        evaluationsService.fetchAllProfiles(),
         evaluationsService.fetchAcademicYears(),
       ]);
       setEvaluations(evaluationsData as Evaluation[]);
-      setProfiles(profilesData as Profile[]);
+      // Merge prefects and all profiles, preferring all profiles for name lookups
+      const allProfiles = allProfilesData as Profile[];
+      setProfiles(allProfiles);
       setAcademicYears(academicYearsData as AcademicYear[]);
     } catch (error) {
       console.error('Error fetching data:', error);

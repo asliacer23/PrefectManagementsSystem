@@ -1,8 +1,11 @@
 import { useState } from 'react';
+import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Dialog,
   DialogContent,
@@ -28,7 +31,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Plus, Edit, Trash2, Eye } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, CalendarIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import * as attendanceService from '../services/attendanceService';
 
@@ -47,6 +50,7 @@ interface Profile {
   id: string;
   first_name: string;
   last_name: string;
+  email: string;
 }
 
 interface AttendanceCRUDProps {
@@ -193,6 +197,10 @@ export default function AttendanceCRUD({
     return profile ? `${profile.first_name} ${profile.last_name}` : 'Unknown';
   };
 
+  const getPrefectProfile = (prefectId: string) => {
+    return profiles.find((p) => p.id === prefectId);
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'present':
@@ -233,7 +241,10 @@ export default function AttendanceCRUD({
                   <SelectContent>
                     {profiles.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
-                        {p.first_name} {p.last_name}
+                        <div className="flex flex-col">
+                          <span>{p.first_name} {p.last_name}</span>
+                          <span className="text-xs text-muted-foreground">{p.email}</span>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -241,33 +252,85 @@ export default function AttendanceCRUD({
               </div>
 
               <div>
-                <Label htmlFor="date-input">Date</Label>
-                <Input
-                  id="date-input"
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                />
+                <Label>Date</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-left font-normal"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {formData.date ? format(new Date(formData.date + 'T00:00:00'), 'MMM dd, yyyy') : 'Pick a date'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={formData.date ? new Date(formData.date + 'T00:00:00') : undefined}
+                      onSelect={(date) => {
+                        if (date) {
+                          const dateStr = format(date, 'yyyy-MM-dd');
+                          setFormData({ ...formData, date: dateStr });
+                        }
+                      }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label htmlFor="time-in">Time In</Label>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label htmlFor="time-in">Time In</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const now = new Date();
+                        const formatted = now.toISOString().slice(0, 16);
+                        setFormData({ ...formData, time_in: formatted });
+                      }}
+                      className="h-7 text-xs"
+                    >
+                      Now
+                    </Button>
+                  </div>
                   <Input
                     id="time-in"
                     type="datetime-local"
                     value={formData.time_in}
                     onChange={(e) => setFormData({ ...formData, time_in: e.target.value })}
+                    placeholder="Enter check-in time"
                   />
+                  <p className="text-xs text-muted-foreground mt-1">When prefect checked in</p>
                 </div>
                 <div>
-                  <Label htmlFor="time-out">Time Out</Label>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label htmlFor="time-out">Time Out</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const now = new Date();
+                        const formatted = now.toISOString().slice(0, 16);
+                        setFormData({ ...formData, time_out: formatted });
+                      }}
+                      className="h-7 text-xs"
+                    >
+                      Now
+                    </Button>
+                  </div>
                   <Input
                     id="time-out"
                     type="datetime-local"
                     value={formData.time_out}
                     onChange={(e) => setFormData({ ...formData, time_out: e.target.value })}
+                    placeholder="Enter check-out time"
                   />
+                  <p className="text-xs text-muted-foreground mt-1">When prefect checked out</p>
                 </div>
               </div>
 
@@ -311,42 +374,55 @@ export default function AttendanceCRUD({
           </DialogHeader>
           {selectedRecord && (
             <div className="space-y-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Prefect</p>
-                <p className="font-medium">{getPrefectName(selectedRecord.prefect_id)}</p>
+              <div className="border-b pb-4">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Prefect</p>
+                {getPrefectProfile(selectedRecord.prefect_id) ? (
+                  <div className="mt-2">
+                    <p className="font-semibold text-base">{getPrefectProfile(selectedRecord.prefect_id)?.first_name} {getPrefectProfile(selectedRecord.prefect_id)?.last_name}</p>
+                    <p className="text-sm text-muted-foreground">{getPrefectProfile(selectedRecord.prefect_id)?.email}</p>
+                  </div>
+                ) : (
+                  <p className="text-base text-muted-foreground mt-1">Unknown</p>
+                )}
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Date</p>
-                <p className="font-medium">{new Date(selectedRecord.date).toLocaleDateString()}</p>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Date</p>
+                <p className="font-medium mt-1">{new Date(selectedRecord.date).toLocaleDateString()}</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-muted-foreground">Time In</p>
-                  <p className="font-medium">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Time In</p>
+                  <p className="font-medium mt-1">
                     {selectedRecord.time_in
-                      ? new Date(selectedRecord.time_in).toLocaleTimeString()
-                      : '-'}
+                      ? new Date(selectedRecord.time_in).toLocaleTimeString([], { 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })
+                      : 'Not set'}
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Time Out</p>
-                  <p className="font-medium">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Time Out</p>
+                  <p className="font-medium mt-1">
                     {selectedRecord.time_out
-                      ? new Date(selectedRecord.time_out).toLocaleTimeString()
-                      : '-'}
+                      ? new Date(selectedRecord.time_out).toLocaleTimeString([], { 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })
+                      : 'Not set'}
                   </p>
                 </div>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground mb-2">Status</p>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Status</p>
                 <Badge className={getStatusColor(selectedRecord.status)}>
                   {selectedRecord.status.charAt(0).toUpperCase() + selectedRecord.status.slice(1)}
                 </Badge>
               </div>
               {selectedRecord.notes && (
-                <div>
-                  <p className="text-sm text-muted-foreground">Notes</p>
-                  <p className="font-medium text-sm">{selectedRecord.notes}</p>
+                <div className="bg-muted p-3 rounded-md">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Notes</p>
+                  <p className="font-medium text-sm mt-2">{selectedRecord.notes}</p>
                 </div>
               )}
             </div>
@@ -373,7 +449,22 @@ export default function AttendanceCRUD({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label htmlFor="edit-time-in">Time In</Label>
+                <div className="flex items-center justify-between mb-2">
+                  <Label htmlFor="edit-time-in">Time In</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const now = new Date();
+                      const formatted = now.toISOString().slice(0, 16);
+                      setFormData({ ...formData, time_in: formatted });
+                    }}
+                    className="h-7 text-xs"
+                  >
+                    Now
+                  </Button>
+                </div>
                 <Input
                   id="edit-time-in"
                   type="datetime-local"
@@ -382,7 +473,22 @@ export default function AttendanceCRUD({
                 />
               </div>
               <div>
-                <Label htmlFor="edit-time-out">Time Out</Label>
+                <div className="flex items-center justify-between mb-2">
+                  <Label htmlFor="edit-time-out">Time Out</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const now = new Date();
+                      const formatted = now.toISOString().slice(0, 16);
+                      setFormData({ ...formData, time_out: formatted });
+                    }}
+                    className="h-7 text-xs"
+                  >
+                    Now
+                  </Button>
+                </div>
                 <Input
                   id="edit-time-out"
                   type="datetime-local"

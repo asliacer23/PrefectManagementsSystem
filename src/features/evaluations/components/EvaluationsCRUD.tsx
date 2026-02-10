@@ -46,6 +46,7 @@ interface Profile {
   id: string;
   first_name: string;
   last_name: string;
+  email: string;
 }
 
 interface AcademicYear {
@@ -80,6 +81,7 @@ export default function EvaluationsCRUD({
 
   const [formData, setFormData] = useState({
     prefect_id: '',
+    evaluator_id: '',
     academic_year_id: 'none',
     rating: '5',
     comments: '',
@@ -88,6 +90,7 @@ export default function EvaluationsCRUD({
   const resetForm = () => {
     setFormData({
       prefect_id: '',
+      evaluator_id: userId,
       academic_year_id: 'none',
       rating: '5',
       comments: '',
@@ -104,6 +107,7 @@ export default function EvaluationsCRUD({
     setSelectedEvaluation(evaluation);
     setFormData({
       prefect_id: evaluation.prefect_id,
+      evaluator_id: evaluation.evaluator_id,
       academic_year_id: evaluation.academic_year_id || 'none',
       rating: evaluation.rating.toString(),
       comments: evaluation.comments || '',
@@ -122,7 +126,7 @@ export default function EvaluationsCRUD({
   };
 
   const handleCreate = async () => {
-    if (!formData.prefect_id || !formData.rating) {
+    if (!formData.prefect_id || !formData.evaluator_id || !formData.rating) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -131,7 +135,7 @@ export default function EvaluationsCRUD({
     try {
       const newEvaluation = await evaluationsService.createEvaluation({
         prefect_id: formData.prefect_id,
-        evaluator_id: userId,
+        evaluator_id: formData.evaluator_id,
         academic_year_id: formData.academic_year_id !== 'none' ? formData.academic_year_id : null,
         rating: parseInt(formData.rating),
         comments: formData.comments || null,
@@ -199,9 +203,17 @@ export default function EvaluationsCRUD({
     return profile ? `${profile.first_name} ${profile.last_name}` : 'Unknown';
   };
 
+  const getPrefectProfile = (prefectId: string) => {
+    return profiles.find((p) => p.id === prefectId);
+  };
+
   const getEvaluatorName = (evaluatorId: string) => {
     const profile = profiles.find((p) => p.id === evaluatorId);
     return profile ? `${profile.first_name} ${profile.last_name}` : 'Unknown';
+  };
+
+  const getEvaluatorProfile = (evaluatorId: string) => {
+    return profiles.find((p) => p.id === evaluatorId);
   };
 
   const getAcademicYearName = (yearId: string | null) => {
@@ -245,7 +257,29 @@ export default function EvaluationsCRUD({
                   <SelectContent>
                     {profiles.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
-                        {p.first_name} {p.last_name}
+                        <div className="flex flex-col">
+                          <span>{p.first_name} {p.last_name}</span>
+                          <span className="text-xs text-muted-foreground">{p.email}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="evaluator-select">Evaluator</Label>
+                <Select value={formData.evaluator_id} onValueChange={(v) => setFormData({ ...formData, evaluator_id: v })}>
+                  <SelectTrigger id="evaluator-select">
+                    <SelectValue placeholder="Select evaluator" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {profiles.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        <div className="flex flex-col">
+                          <span>{p.first_name} {p.last_name}</span>
+                          <span className="text-xs text-muted-foreground">{p.email}</span>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -314,35 +348,51 @@ export default function EvaluationsCRUD({
           </DialogHeader>
           {selectedEvaluation && (
             <div className="space-y-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Prefect</p>
-                <p className="font-medium">{getPrefectName(selectedEvaluation.prefect_id)}</p>
+              <div className="border-b pb-4">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Prefect</p>
+                {getPrefectProfile(selectedEvaluation.prefect_id) ? (
+                  <div className="mt-2">
+                    <p className="font-semibold text-base">{getPrefectProfile(selectedEvaluation.prefect_id)?.first_name} {getPrefectProfile(selectedEvaluation.prefect_id)?.last_name}</p>
+                    <p className="text-sm text-muted-foreground">{getPrefectProfile(selectedEvaluation.prefect_id)?.email}</p>
+                  </div>
+                ) : (
+                  <p className="text-base text-muted-foreground mt-1">Unknown</p>
+                )}
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Evaluator</p>
-                <p className="font-medium">{getEvaluatorName(selectedEvaluation.evaluator_id)}</p>
+              <div className="border-b pb-4">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Evaluator</p>
+                {getEvaluatorProfile(selectedEvaluation.evaluator_id) ? (
+                  <div className="mt-2">
+                    <p className="font-semibold text-base">{getEvaluatorProfile(selectedEvaluation.evaluator_id)?.first_name} {getEvaluatorProfile(selectedEvaluation.evaluator_id)?.last_name}</p>
+                    <p className="text-sm text-muted-foreground">{getEvaluatorProfile(selectedEvaluation.evaluator_id)?.email}</p>
+                  </div>
+                ) : (
+                  <p className="text-base text-muted-foreground mt-1">Unknown</p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-muted-foreground">Academic Year</p>
-                  <p className="font-medium">{getAcademicYearName(selectedEvaluation.academic_year_id)}</p>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Academic Year</p>
+                  <p className="font-medium mt-1">{getAcademicYearName(selectedEvaluation.academic_year_id)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Rating</p>
-                  <Badge className={getRatingColor(selectedEvaluation.rating)}>
-                    {selectedEvaluation.rating} - {getRatingLabel(selectedEvaluation.rating)}
-                  </Badge>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Rating</p>
+                  <div className="mt-1">
+                    <Badge className={getRatingColor(selectedEvaluation.rating)}>
+                      {selectedEvaluation.rating} - {getRatingLabel(selectedEvaluation.rating)}
+                    </Badge>
+                  </div>
                 </div>
               </div>
               {selectedEvaluation.comments && (
-                <div>
-                  <p className="text-sm text-muted-foreground">Comments</p>
-                  <p className="font-medium text-sm">{selectedEvaluation.comments}</p>
+                <div className="bg-muted p-3 rounded-md">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Comments</p>
+                  <p className="font-medium text-sm mt-2">{selectedEvaluation.comments}</p>
                 </div>
               )}
-              <div>
-                <p className="text-sm text-muted-foreground">Created</p>
-                <p className="font-medium text-sm">{new Date(selectedEvaluation.created_at).toLocaleDateString()}</p>
+              <div className="pt-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Created</p>
+                <p className="font-medium text-sm mt-1">{new Date(selectedEvaluation.created_at).toLocaleDateString()}</p>
               </div>
             </div>
           )}

@@ -33,6 +33,7 @@ interface Profile {
   id: string;
   first_name: string;
   last_name: string;
+  email: string;
 }
 
 interface AcademicYear {
@@ -106,10 +107,18 @@ export default function EvaluationsView({
     return profile ? `${profile.first_name} ${profile.last_name}` : 'Unknown';
   };
 
+  const getPrefectProfile = (prefectId: string) => {
+    return profiles.find((p) => p.id === prefectId);
+  };
+
   const getEvaluatorName = (evaluatorId: string) => {
     const profile = profiles.find((p) => p.id === evaluatorId);
     return profile ? `${profile.first_name} ${profile.last_name}` : 'Unknown';
   };
+
+  const getEvaluatorProfile = (evaluatorId: string) => {
+    return profiles.find((p) => p.id === evaluatorId);
+  }
 
   const getAcademicYearName = (yearId: string | null) => {
     if (!yearId) return 'N/A';
@@ -219,30 +228,46 @@ export default function EvaluationsView({
           </DialogHeader>
           {selectedEvaluation && (
             <div className="space-y-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Prefect</p>
-                <p className="font-medium">{getPrefectName(selectedEvaluation.prefect_id)}</p>
+              <div className="border-b pb-4">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Prefect</p>
+                {getPrefectProfile(selectedEvaluation.prefect_id) ? (
+                  <div className="mt-2">
+                    <p className="font-semibold text-base">{getPrefectProfile(selectedEvaluation.prefect_id)?.first_name} {getPrefectProfile(selectedEvaluation.prefect_id)?.last_name}</p>
+                    <p className="text-sm text-muted-foreground">{getPrefectProfile(selectedEvaluation.prefect_id)?.email}</p>
+                  </div>
+                ) : (
+                  <p className="text-base text-muted-foreground mt-1">Unknown</p>
+                )}
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Evaluator</p>
-                <p className="font-medium">{getEvaluatorName(selectedEvaluation.evaluator_id)}</p>
+              <div className="border-b pb-4">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Evaluator</p>
+                {getEvaluatorProfile(selectedEvaluation.evaluator_id) ? (
+                  <div className="mt-2">
+                    <p className="font-semibold text-base">{getEvaluatorProfile(selectedEvaluation.evaluator_id)?.first_name} {getEvaluatorProfile(selectedEvaluation.evaluator_id)?.last_name}</p>
+                    <p className="text-sm text-muted-foreground">{getEvaluatorProfile(selectedEvaluation.evaluator_id)?.email}</p>
+                  </div>
+                ) : (
+                  <p className="text-base text-muted-foreground mt-1">Unknown</p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-muted-foreground">Academic Year</p>
-                  <p className="font-medium">{getAcademicYearName(selectedEvaluation.academic_year_id)}</p>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Academic Year</p>
+                  <p className="font-medium mt-1">{getAcademicYearName(selectedEvaluation.academic_year_id)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Rating</p>
-                  <Badge className={getRatingColor(selectedEvaluation.rating)}>
-                    {selectedEvaluation.rating} - {getRatingLabel(selectedEvaluation.rating)}
-                  </Badge>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Rating</p>
+                  <div className="mt-1">
+                    <Badge className={getRatingColor(selectedEvaluation.rating)}>
+                      {selectedEvaluation.rating} - {getRatingLabel(selectedEvaluation.rating)}
+                    </Badge>
+                  </div>
                 </div>
               </div>
               {selectedEvaluation.comments && (
-                <div>
-                  <p className="text-sm text-muted-foreground">Comments</p>
-                  <p className="font-medium text-sm">{selectedEvaluation.comments}</p>
+                <div className="bg-muted p-3 rounded-md">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Comments</p>
+                  <p className="font-medium text-sm mt-2">{selectedEvaluation.comments}</p>
                 </div>
               )}
             </div>

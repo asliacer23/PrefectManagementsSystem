@@ -28,6 +28,7 @@ export interface Profile {
   id: string;
   first_name: string;
   last_name: string;
+  email: string;
 }
 
 export interface AcademicYear {
@@ -220,12 +221,42 @@ export async function searchEvaluations(query: string): Promise<Evaluation[]> {
 }
 
 /**
- * Fetch all prefect profiles
+ * Fetch all prefect profiles (users with 'prefect' role)
  */
 export async function fetchPrefects(): Promise<Profile[]> {
+  // First, get all user IDs with 'prefect' role
+  const { data: prefectRoles, error: rolesError } = await supabase
+    .from('user_roles')
+    .select('user_id')
+    .eq('role', 'prefect');
+
+  if (rolesError) throw rolesError;
+
+  if (!prefectRoles || prefectRoles.length === 0) {
+    return [];
+  }
+
+  // Extract user IDs
+  const prefectIds = prefectRoles.map(r => r.user_id);
+
+  // Fetch profiles for these users
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, first_name, last_name')
+    .select('id, first_name, last_name, email')
+    .in('id', prefectIds)
+    .order('first_name', { ascending: true });
+
+  if (error) throw error;
+  return (data || []) as Profile[];
+}
+
+/**
+ * Fetch all user profiles (for evaluator and prefect lookups)
+ */
+export async function fetchAllProfiles(): Promise<Profile[]> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, first_name, last_name, email')
     .order('first_name', { ascending: true });
 
   if (error) throw error;
