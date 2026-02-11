@@ -23,6 +23,7 @@ import AttendancePage from "@/features/attendance/pages/AttendancePage";
 import EvaluationsPage from "@/features/evaluations/pages/EvaluationsPage";
 import ReportsPage from "@/features/reports/pages/ReportsPage";
 import WeeklyReportsPage from "@/features/reports/pages/WeeklyReportsPage";
+import { ProfilePage } from "@/features/profile";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -72,6 +73,7 @@ const App = () => (
               <Route path="/evaluations" element={<ProtectedRoute><EvaluationsPage /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
               <Route path="/weekly-reports" element={<ProtectedRoute><WeeklyReportsPage /></ProtectedRoute>} />
+              <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

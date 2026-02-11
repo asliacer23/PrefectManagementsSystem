@@ -5,7 +5,7 @@ import {
   ClipboardList, ShieldCheck, Calendar, BarChart3,
   ChevronLeft, ChevronRight, LogOut, Moon, Sun, Menu, X,
   BookOpen, AlertTriangle, DoorOpen, UserCheck, FileBarChart,
-  MessageCircle
+  MessageCircle, User
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
@@ -33,6 +33,7 @@ const navItems: NavItem[] = [
   { label: 'Evaluations', icon: <GraduationCap size={20} />, path: '/evaluations', roles: ['admin', 'faculty'] },
   { label: 'Reports', icon: <BarChart3 size={20} />, path: '/reports', roles: ['admin', 'prefect', 'faculty'] },
   { label: 'Weekly Reports', icon: <FileBarChart size={20} />, path: '/weekly-reports', roles: ['admin', 'prefect', 'faculty'] },
+  { label: 'My Profile', icon: <User size={20} />, path: '/profile', roles: ['admin', 'prefect', 'faculty', 'student'] },
 ];
 
 export default function AppSidebar() {

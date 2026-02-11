@@ -30,7 +30,7 @@ export function QuickChatSearch({
   const [loading, setLoading] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-  // Search for users
+  // Search for users by name
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
@@ -47,16 +47,28 @@ export function QuickChatSearch({
           .select("id, first_name, last_name, email, avatar_url")
           .neq("id", user?.id)
           .or(
-            `first_name.ilike.%${query}%,last_name.ilike.%${query}%,email.ilike.%${query}%`
+            `first_name.ilike.%${query}%,last_name.ilike.%${query}%`
           )
-          .limit(10);
+          .limit(15);
 
         if (error) {
           console.error("Search error:", error);
           return;
         }
 
-        setSearchResults(profiles || []);
+        // Sort results by name match relevance
+        const sorted = (profiles || []).sort((a, b) => {
+          const aName = `${a.first_name} ${a.last_name}`.toLowerCase();
+          const bName = `${b.first_name} ${b.last_name}`.toLowerCase();
+          const aStartsWithQuery = aName.startsWith(query);
+          const bStartsWithQuery = bName.startsWith(query);
+          
+          if (aStartsWithQuery && !bStartsWithQuery) return -1;
+          if (!aStartsWithQuery && bStartsWithQuery) return 1;
+          return aName.localeCompare(bName);
+        });
+
+        setSearchResults(sorted);
       } catch (error) {
         console.error("Error searching users:", error);
       } finally {
@@ -114,18 +126,18 @@ export function QuickChatSearch({
   };
 
   return (
-    <div className="space-y-2 pb-3 border-b border-border">
+    <div className="space-y-2 pb-4 border-b border-border">
       <div className="relative">
-        <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground pointer-events-none" />
+        <Search className="absolute left-3 top-3.5 w-4 h-4 text-muted-foreground pointer-events-none" />
         <Input
-          placeholder="Search to start chat... (name or email)"
+          placeholder="Search by name..."
           value={searchQuery}
           onChange={(e) => {
             setSearchQuery(e.target.value);
             setIsSearchOpen(true);
           }}
           onFocus={() => setIsSearchOpen(true)}
-          className="pl-9 h-10 text-sm bg-muted/50 border-border"
+          className="pl-9 h-11 text-sm bg-muted/50 border-border font-medium placeholder:font-normal"
         />
         {searchQuery && (
           <Button
@@ -135,7 +147,7 @@ export function QuickChatSearch({
               setSearchQuery("");
               setIsSearchOpen(false);
             }}
-            className="absolute right-1 top-0.5 h-9 w-9"
+            className="absolute right-1 top-1 h-9 w-9 hover:bg-muted"
           >
             <X className="w-4 h-4" />
           </Button>
@@ -144,45 +156,48 @@ export function QuickChatSearch({
 
       {/* Search Results Dropdown */}
       {isSearchOpen && searchQuery && (
-        <Card className="absolute top-12 left-0 right-0 z-50 border border-border shadow-lg max-h-72">
+        <Card className="absolute top-14 left-0 right-0 z-50 border border-border shadow-lg max-h-80 rounded-lg">
           {loading ? (
-            <div className="flex items-center justify-center py-6">
+            <div className="flex items-center justify-center py-8">
               <div className="text-sm text-muted-foreground animate-pulse">
                 Searching...
               </div>
             </div>
           ) : searchResults.length === 0 ? (
-            <div className="flex items-center justify-center py-6">
+            <div className="flex items-center justify-center py-8">
               <div className="text-sm text-muted-foreground">
-                No users found
+                No users found matching "{searchQuery}"
               </div>
             </div>
           ) : (
-            <ScrollArea className="max-h-72">
-              <div className="space-y-1 p-2">
+            <ScrollArea className="max-h-80">
+              <div className="space-y-1 p-3">
                 {searchResults.map((profile) => (
                   <Button
                     key={profile.id}
                     variant="ghost"
-                    className="w-full justify-start h-auto py-2 px-3 rounded-lg hover:bg-muted text-left"
+                    className="w-full justify-start h-auto py-2.5 px-3 rounded-md hover:bg-muted/80 text-left transition-colors"
                     onClick={() => handleStartChat(profile)}
                     disabled={loading}
                   >
                     <div className="flex items-center gap-3 w-full min-w-0">
-                      <Avatar className="h-10 w-10 flex-shrink-0">
-                        <AvatarImage src={profile.avatar_url || ""} />
-                        <AvatarFallback className="text-xs">
-                          {profile.first_name[0]}
-                          {profile.last_name[0]}
+                      <Avatar className="h-10 w-10 flex-shrink-0 ring-1 ring-border/50">
+                        <AvatarImage src={profile.avatar_url || ""} alt={`${profile.first_name} ${profile.last_name}`} />
+                        <AvatarFallback className="text-xs font-semibold bg-primary/10">
+                          {profile.first_name[0]?.toUpperCase()}
+                          {profile.last_name[0]?.toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
+                        <p className="text-sm font-semibold truncate text-foreground">
                           {profile.first_name} {profile.last_name}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
                           {profile.email}
                         </p>
+                      </div>
+                      <div className="text-xs text-muted-foreground flex-shrink-0">
+                        →
                       </div>
                     </div>
                   </Button>
