@@ -12,6 +12,7 @@ import ResetPasswordPage from "@/features/auth/pages/ResetPasswordPage";
 import DashboardRouter from "@/features/dashboard/pages/DashboardRouter";
 import UserManagement from "@/features/users/pages/UserManagement";
 import TrainingPage from "@/features/training/pages/TrainingPage";
+import { ConversationsPage } from "@/features/conversations/pages";
 import ComplaintsPage from "@/features/complaints/pages/ComplaintsPage";
 import IncidentsPage from "@/features/incidents/pages/IncidentsPage";
 import RecruitmentPage from "@/features/recruitment/pages/RecruitmentPage";
@@ -60,6 +61,7 @@ const App = () => (
               <Route path="/dashboard" element={<ProtectedRoute><DashboardRouter /></ProtectedRoute>} />
               <Route path="/users" element={<ProtectedRoute><AdminRoute><UserManagement /></AdminRoute></ProtectedRoute>} />
               <Route path="/training" element={<ProtectedRoute><TrainingPage /></ProtectedRoute>} />
+              <Route path="/conversations" element={<ProtectedRoute><ConversationsPage /></ProtectedRoute>} />
               <Route path="/complaints" element={<ProtectedRoute><ComplaintsPage /></ProtectedRoute>} />
               <Route path="/incidents" element={<ProtectedRoute><IncidentsPage /></ProtectedRoute>} />
               <Route path="/recruitment" element={<ProtectedRoute><RecruitmentPage /></ProtectedRoute>} />

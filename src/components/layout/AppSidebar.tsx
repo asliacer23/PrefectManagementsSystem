@@ -4,7 +4,8 @@ import {
   LayoutDashboard, Users, GraduationCap, FileText,
   ClipboardList, ShieldCheck, Calendar, BarChart3,
   ChevronLeft, ChevronRight, LogOut, Moon, Sun, Menu, X,
-  BookOpen, AlertTriangle, DoorOpen, UserCheck, FileBarChart
+  BookOpen, AlertTriangle, DoorOpen, UserCheck, FileBarChart,
+  MessageCircle
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
@@ -21,6 +22,7 @@ const navItems: NavItem[] = [
   { label: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/dashboard', roles: ['admin', 'prefect', 'faculty', 'student'] },
   { label: 'User Management', icon: <Users size={20} />, path: '/users', roles: ['admin'] },
   { label: 'Training', icon: <BookOpen size={20} />, path: '/training', roles: ['admin', 'prefect', 'faculty', 'student'] },
+  { label: 'Conversations', icon: <MessageCircle size={20} />, path: '/conversations', roles: ['admin', 'prefect', 'faculty', 'student'] },
   { label: 'Complaints', icon: <FileText size={20} />, path: '/complaints', roles: ['admin', 'prefect', 'faculty', 'student'] },
   { label: 'Incidents', icon: <AlertTriangle size={20} />, path: '/incidents', roles: ['admin', 'prefect', 'faculty'] },
   { label: 'Recruitment', icon: <UserCheck size={20} />, path: '/recruitment', roles: ['admin', 'prefect', 'faculty', 'student'] },

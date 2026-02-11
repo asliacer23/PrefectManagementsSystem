@@ -438,13 +438,31 @@ export default function AttendanceCRUD({
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="edit-date">Date</Label>
-              <Input
-                id="edit-date"
-                type="date"
-                value={formData.date}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-              />
+              <Label>Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start text-left font-normal"
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {formData.date ? format(new Date(formData.date + 'T00:00:00'), 'MMM dd, yyyy') : 'Pick a date'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={formData.date ? new Date(formData.date + 'T00:00:00') : undefined}
+                    onSelect={(date) => {
+                      if (date) {
+                        const dateStr = format(date, 'yyyy-MM-dd');
+                        setFormData({ ...formData, date: dateStr });
+                      }
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
