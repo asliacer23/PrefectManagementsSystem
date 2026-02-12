@@ -207,10 +207,29 @@ export const searchGateLogs = async (searchTerm: string): Promise<GateAssistance
  * Fetch all prefect profiles for assignment
  */
 export const fetchPrefects = async (): Promise<Array<{ id: string; first_name: string; last_name: string }>> => {
+  // First, get all user IDs with 'prefect' role
+  const { data: prefectRoles, error: rolesError } = await supabase
+    .from('user_roles')
+    .select('user_id')
+    .eq('role', 'prefect');
+
+  if (rolesError) {
+    throw new Error(rolesError.message || 'Failed to fetch prefect roles');
+  }
+
+  if (!prefectRoles || prefectRoles.length === 0) {
+    return [];
+  }
+
+  // Extract user IDs
+  const prefectIds = prefectRoles.map((r: { user_id: string }) => r.user_id);
+
+  // Fetch profiles for these users
   const { data, error } = await supabase
     .from('profiles')
     .select('id, first_name, last_name')
-    .order('first_name');
+    .in('id', prefectIds)
+    .order('first_name', { ascending: true });
 
   if (error) {
     throw new Error(error.message || 'Failed to fetch prefects');
