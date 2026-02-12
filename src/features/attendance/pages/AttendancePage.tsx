@@ -37,14 +37,12 @@ export default function AttendancePage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [attendanceData, prefectsData, allProfilesData] = await Promise.all([
+      const [attendanceData, prefectsData] = await Promise.all([
         attendanceService.fetchAttendance(),
         attendanceService.fetchPrefects(),
-        attendanceService.fetchAllProfiles(),
       ]);
       setAttendance(attendanceData as Attendance[]);
-      const allProfiles = allProfilesData as Profile[];
-      setProfiles(allProfiles);
+      setProfiles(prefectsData as Profile[]);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {

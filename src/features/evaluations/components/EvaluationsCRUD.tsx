@@ -61,7 +61,8 @@ interface EvaluationsCRUDProps {
   evaluations: Evaluation[];
   onEvaluationsChange: (evaluations: Evaluation[]) => void;
   userId: string;
-  profiles: Profile[];
+  prefectProfiles: Profile[];
+  adminProfiles: Profile[];
   academicYears: AcademicYear[];
 }
 
@@ -69,7 +70,8 @@ export default function EvaluationsCRUD({
   evaluations,
   onEvaluationsChange,
   userId,
-  profiles,
+  prefectProfiles,
+  adminProfiles,
   academicYears,
 }: EvaluationsCRUDProps) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -199,21 +201,21 @@ export default function EvaluationsCRUD({
   };
 
   const getPrefectName = (prefectId: string) => {
-    const profile = profiles.find((p) => p.id === prefectId);
+    const profile = prefectProfiles.find((p) => p.id === prefectId);
     return profile ? `${profile.first_name} ${profile.last_name}` : 'Unknown';
   };
 
   const getPrefectProfile = (prefectId: string) => {
-    return profiles.find((p) => p.id === prefectId);
+    return prefectProfiles.find((p) => p.id === prefectId);
   };
 
   const getEvaluatorName = (evaluatorId: string) => {
-    const profile = profiles.find((p) => p.id === evaluatorId);
+    const profile = adminProfiles.find((p) => p.id === evaluatorId);
     return profile ? `${profile.first_name} ${profile.last_name}` : 'Unknown';
   };
 
   const getEvaluatorProfile = (evaluatorId: string) => {
-    return profiles.find((p) => p.id === evaluatorId);
+    return adminProfiles.find((p) => p.id === evaluatorId);
   };
 
   const getAcademicYearName = (yearId: string | null) => {
@@ -255,7 +257,7 @@ export default function EvaluationsCRUD({
                     <SelectValue placeholder="Select a prefect" />
                   </SelectTrigger>
                   <SelectContent>
-                    {profiles.map((p) => (
+                    {prefectProfiles.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
                         <div className="flex flex-col">
                           <span>{p.first_name} {p.last_name}</span>
@@ -274,7 +276,7 @@ export default function EvaluationsCRUD({
                     <SelectValue placeholder="Select evaluator" />
                   </SelectTrigger>
                   <SelectContent>
-                    {profiles.map((p) => (
+                    {adminProfiles.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
                         <div className="flex flex-col">
                           <span>{p.first_name} {p.last_name}</span>

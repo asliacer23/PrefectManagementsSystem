@@ -251,7 +251,37 @@ export async function fetchPrefects(): Promise<Profile[]> {
 }
 
 /**
- * Fetch all user profiles (for evaluator and prefect lookups)
+ * Fetch all admin profiles (users with 'admin' role)
+ */
+export async function fetchAdmins(): Promise<Profile[]> {
+  // First, get all user IDs with 'admin' role
+  const { data: adminRoles, error: rolesError } = await supabase
+    .from('user_roles')
+    .select('user_id')
+    .eq('role', 'admin');
+
+  if (rolesError) throw rolesError;
+
+  if (!adminRoles || adminRoles.length === 0) {
+    return [];
+  }
+
+  // Extract user IDs
+  const adminIds = adminRoles.map(r => r.user_id);
+
+  // Fetch profiles for these users
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, first_name, last_name, email')
+    .in('id', adminIds)
+    .order('first_name', { ascending: true });
+
+  if (error) throw error;
+  return (data || []) as Profile[];
+}
+
+/**
+ * Fetch all user profiles (for lookups)
  */
 export async function fetchAllProfiles(): Promise<Profile[]> {
   const { data, error } = await supabase

@@ -49,7 +49,8 @@ interface EvaluationsViewProps {
   onEvaluationsChange: (evaluations: Evaluation[]) => void;
   userId: string;
   isAdmin: boolean;
-  profiles: Profile[];
+  prefectProfiles: Profile[];
+  adminProfiles: Profile[];
   academicYears: AcademicYear[];
 }
 
@@ -57,7 +58,8 @@ export default function EvaluationsView({
   evaluations,
   userId,
   isAdmin,
-  profiles,
+  prefectProfiles,
+  adminProfiles,
   academicYears,
 }: EvaluationsViewProps) {
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
@@ -103,21 +105,21 @@ export default function EvaluationsView({
   }, [evaluations, userId, isAdmin]);
 
   const getPrefectName = (prefectId: string) => {
-    const profile = profiles.find((p) => p.id === prefectId);
+    const profile = prefectProfiles.find((p) => p.id === prefectId);
     return profile ? `${profile.first_name} ${profile.last_name}` : 'Unknown';
   };
 
   const getPrefectProfile = (prefectId: string) => {
-    return profiles.find((p) => p.id === prefectId);
+    return prefectProfiles.find((p) => p.id === prefectId);
   };
 
   const getEvaluatorName = (evaluatorId: string) => {
-    const profile = profiles.find((p) => p.id === evaluatorId);
+    const profile = adminProfiles.find((p) => p.id === evaluatorId);
     return profile ? `${profile.first_name} ${profile.last_name}` : 'Unknown';
   };
 
   const getEvaluatorProfile = (evaluatorId: string) => {
-    return profiles.find((p) => p.id === evaluatorId);
+    return adminProfiles.find((p) => p.id === evaluatorId);
   }
 
   const getAcademicYearName = (yearId: string | null) => {

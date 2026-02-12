@@ -37,7 +37,8 @@ export default function EvaluationsPage() {
   const { user, hasRole } = useAuth();
   const isAdmin = hasRole('admin');
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [prefectProfiles, setPrefectProfiles] = useState<Profile[]>([]);
+  const [adminProfiles, setAdminProfiles] = useState<Profile[]>([]);
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(isAdmin ? 'manage' : 'view');
@@ -45,16 +46,15 @@ export default function EvaluationsPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [evaluationsData, prefectsData, allProfilesData, academicYearsData] = await Promise.all([
+      const [evaluationsData, prefectsData, adminsData, academicYearsData] = await Promise.all([
         evaluationsService.fetchEvaluations(),
         evaluationsService.fetchPrefects(),
-        evaluationsService.fetchAllProfiles(),
+        evaluationsService.fetchAdmins(),
         evaluationsService.fetchAcademicYears(),
       ]);
       setEvaluations(evaluationsData as Evaluation[]);
-      // Merge prefects and all profiles, preferring all profiles for name lookups
-      const allProfiles = allProfilesData as Profile[];
-      setProfiles(allProfiles);
+      setPrefectProfiles(prefectsData as Profile[]);
+      setAdminProfiles(adminsData as Profile[]);
       setAcademicYears(academicYearsData as AcademicYear[]);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -98,7 +98,8 @@ export default function EvaluationsPage() {
                 onEvaluationsChange={setEvaluations}
                 userId={user?.id || ''}
                 isAdmin={isAdmin}
-                profiles={profiles}
+                prefectProfiles={prefectProfiles}
+                adminProfiles={adminProfiles}
                 academicYears={academicYears}
               />
             )}
@@ -116,7 +117,8 @@ export default function EvaluationsPage() {
                   evaluations={evaluations}
                   onEvaluationsChange={setEvaluations}
                   userId={user?.id || ''}
-                  profiles={profiles}
+                  prefectProfiles={prefectProfiles}
+                  adminProfiles={adminProfiles}
                   academicYears={academicYears}
                 />
               </div>
@@ -136,7 +138,8 @@ export default function EvaluationsPage() {
               onEvaluationsChange={setEvaluations}
               userId={user?.id || ''}
               isAdmin={false}
-              profiles={profiles}
+              prefectProfiles={prefectProfiles}
+              adminProfiles={adminProfiles}
               academicYears={academicYears}
             />
           )}
