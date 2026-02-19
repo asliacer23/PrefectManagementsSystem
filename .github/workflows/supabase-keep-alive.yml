@@ -1,0 +1,24 @@
+name: Supabase Keep Alive
+
+on:
+  schedule:
+    - cron: "0 0 * * *"   # every 24 hours (UTC)
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Insert keep-alive record
+        run: |
+          curl -X POST "${{ secrets.SUPABASE_URL }}/rest/v1/keep_alive_logs" \
+          -H "apikey: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+          -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+          -H "Content-Type: application/json" \
+          -d '{"source":"github-action"}'
+
+      - name: Cleanup old logs
+        run: |
+          curl -X DELETE "${{ secrets.SUPABASE_URL }}/rest/v1/keep_alive_logs?created_at=lt.$(date -u -d '7 days ago' +%Y-%m-%d)" \
+          -H "apikey: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+          -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
