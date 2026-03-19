@@ -4,6 +4,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
 import { Settings, Eye } from 'lucide-react';
+import { ExternalIntegrationPanel } from '@/features/integrations/components/ExternalIntegrationPanel';
 import IncidentsCRUD from '../components/IncidentsCRUD';
 import IncidentsView from '../components/IncidentsView';
 import * as incidentsService from '../services/incidentsService';
@@ -23,6 +24,7 @@ interface Incident {
 export default function IncidentsPage() {
   const { user, hasRole } = useAuth();
   const isAdmin = hasRole('admin');
+  const registrarBaseUrl = 'http://localhost:3000/api/integrations';
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(isAdmin ? 'manage' : 'view');
@@ -56,6 +58,62 @@ export default function IncidentsPage() {
         title="Incident Reports"
         description="Report and track incidents"
       />
+
+      <div className="mb-6">
+        <ExternalIntegrationPanel
+          title="Incident Integrations"
+          description="Registrar student identity lookup and discipline-related outgoing feeds are handled from the incidents workflow."
+          baseUrl={registrarBaseUrl}
+          apiKey=""
+          actions={[
+            {
+              key: 'student-personal-info',
+              title: 'Student Personal Information',
+              description: 'Receive student personal information from Registrar for discipline verification.',
+              badge: 'Registrar',
+              mode: 'fetch',
+              endpointLabel: 'GET /api/integrations?resource=student-personal-info&student_no=...',
+              buildRequest: (studentNo) => ({
+                url: `${registrarBaseUrl}?resource=student-personal-info&student_no=${encodeURIComponent(studentNo)}`
+              })
+            },
+            {
+              key: 'discipline-records',
+              title: 'Discipline Records',
+              description: 'Send discipline records from Prefect to Registrar.',
+              badge: 'Registrar',
+              mode: 'post',
+              endpointLabel: 'POST /api/integrations { resource: discipline-records }',
+              buildRequest: (studentNo, referenceNo, title, notes, status) => ({
+                url: registrarBaseUrl,
+                init: {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    resource: 'discipline-records',
+                    student_no: studentNo,
+                    reference_no: referenceNo,
+                    title,
+                    notes,
+                    status,
+                  })
+                }
+              })
+            },
+            {
+              key: 'incident-reports',
+              title: 'Incident Reports',
+              description: 'Send incident reports to Clinic using the Prefect API endpoint.',
+              badge: 'Clinic',
+              mode: 'function',
+              endpointLabel: 'Supabase function: incident-reports',
+              buildRequest: () => ({
+                functionName: 'incident-reports'
+              })
+            }
+          ]}
+        />
+      </div>
 
       {/* Admin Tabs */}
       {isAdmin ? (

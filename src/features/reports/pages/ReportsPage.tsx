@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import PageHeader from '@/components/layout/PageHeader';
 import { Badge } from '@/components/ui/badge';
+import { ExternalIntegrationPanel } from '@/features/integrations/components/ExternalIntegrationPanel';
 import { toast } from 'sonner';
 import {
   BarChart3, FileText, AlertTriangle, ClipboardList, Calendar,
@@ -15,6 +16,7 @@ interface CriticalIssues {
 }
 
 export default function ReportsPage() {
+  const registrarBaseUrl = 'http://localhost:3000/api/integrations';
   const [stats, setStats] = useState<SystemStats>({
     totalUsers: 0,
     totalPrefects: 0,
@@ -110,6 +112,39 @@ export default function ReportsPage() {
         title="Reports & Analytics"
         description="Comprehensive system-wide reports and data overview"
       />
+
+      <div className="mb-6">
+        <ExternalIntegrationPanel
+          title="External Reporting Integrations"
+          description="Discipline reporting exports are available directly from the Prefect reports page."
+          baseUrl={registrarBaseUrl}
+          apiKey=""
+          actions={[
+            {
+              key: 'discipline-reports',
+              title: 'Discipline Reports',
+              description: 'Send discipline reports to Guidance.',
+              badge: 'Guidance',
+              mode: 'function',
+              endpointLabel: 'Supabase function: discipline-reports',
+              buildRequest: () => ({
+                functionName: 'discipline-reports'
+              })
+            },
+            {
+              key: 'discipline-statistics',
+              title: 'Discipline Statistics',
+              description: 'Send discipline statistics to PMED.',
+              badge: 'PMED',
+              mode: 'function',
+              endpointLabel: 'Supabase function: discipline-statistics',
+              buildRequest: () => ({
+                functionName: 'discipline-statistics'
+              })
+            }
+          ]}
+        />
+      </div>
 
       {/* Critical Alerts */}
       {(criticalIssues.unresolvedIncidents.length > 0 ||
