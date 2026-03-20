@@ -4,6 +4,26 @@ import type { Database } from './types';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const PREFECT_BRIDGED_TABLES = new Set([
+  'profiles',
+  'user_roles',
+  'departments',
+  'academic_years',
+  'training_categories',
+  'training_materials',
+  'complaints',
+  'complaint_messages',
+  'incident_reports',
+  'prefect_applications',
+  'duty_assignments',
+  'duty_reports',
+  'gate_assistance_logs',
+  'weekly_reports',
+  'performance_evaluations',
+  'events',
+  'event_assignments',
+  'attendance',
+]);
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
@@ -15,3 +35,10 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     autoRefreshToken: true,
   }
 });
+
+const rawFrom = supabase.from.bind(supabase);
+
+supabase.from = ((relation: string) => {
+  const targetRelation = PREFECT_BRIDGED_TABLES.has(relation) ? `prefect_${relation}` : relation;
+  return rawFrom(targetRelation as never);
+}) as typeof supabase.from;

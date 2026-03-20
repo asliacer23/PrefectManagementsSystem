@@ -493,7 +493,7 @@ values
     '13:30',
     '16:30',
     'Multi-Purpose Hall',
-    'in_progress',
+    'assigned',
     '11111111-1111-4111-8111-111111111111'
   )
 on conflict (id) do update

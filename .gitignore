@@ -13,6 +13,7 @@ dist-ssr
 *.local
 
 .env
+*.env
 supabase/migrations
 config.toml
 # Editor directories and files
@@ -25,3 +26,5 @@ config.toml
 *.njsproj
 *.sln
 *.sw?
+
+

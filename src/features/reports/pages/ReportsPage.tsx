@@ -3,6 +3,11 @@ import AppLayout from '@/components/layout/AppLayout';
 import PageHeader from '@/components/layout/PageHeader';
 import { Badge } from '@/components/ui/badge';
 import { ExternalIntegrationPanel } from '@/features/integrations/components/ExternalIntegrationPanel';
+import {
+  dispatchPrefectDepartmentFlowFromDatabase,
+  getPrefectSharedRecordsFromDatabase,
+  type PrefectSharedRecord,
+} from '@/features/integrations/services/databaseIntegrationService';
 import { toast } from 'sonner';
 import {
   BarChart3, FileText, AlertTriangle, ClipboardList, Calendar,
@@ -16,7 +21,6 @@ interface CriticalIssues {
 }
 
 export default function ReportsPage() {
-  const registrarBaseUrl = 'http://localhost:3000/api/integrations';
   const [stats, setStats] = useState<SystemStats>({
     totalUsers: 0,
     totalPrefects: 0,
@@ -45,7 +49,20 @@ export default function ReportsPage() {
     unresolvedIncidents: [],
     pendingComplaints: [],
   });
+  const [pmedReports, setPmedReports] = useState<PrefectSharedRecord[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const loadPmedReports = async () => {
+    const records = await getPrefectSharedRecordsFromDatabase(12);
+    setPmedReports(
+      records.filter(
+        (record) =>
+          record.department_key === 'pmed' ||
+          record.target_department_key === 'pmed' ||
+          record.metadata?.target_department === 'pmed',
+      ),
+    );
+  };
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -56,6 +73,7 @@ export default function ReportsPage() {
         ]);
         setStats(statsData);
         setCriticalIssues(issuesData);
+        await loadPmedReports();
       } catch (error: any) {
         toast.error(error.message || 'Failed to fetch analytics');
       } finally {
@@ -116,34 +134,118 @@ export default function ReportsPage() {
       <div className="mb-6">
         <ExternalIntegrationPanel
           title="External Reporting Integrations"
-          description="Discipline reporting exports are available directly from the Prefect reports page."
-          baseUrl={registrarBaseUrl}
+          description="Send complete Prefect reporting data directly to the connected Guidance and PMED departments."
+          baseUrl=""
           apiKey=""
+          onActionComplete={async (action, payload) => {
+            if ((payload as { ok?: boolean } | null)?.ok) {
+              await loadPmedReports();
+            }
+          }}
           actions={[
             {
               key: 'discipline-reports',
-              title: 'Discipline Reports',
+              title: 'Send to Guidance',
               description: 'Send discipline reports to Guidance.',
               badge: 'Guidance',
-              mode: 'function',
-              endpointLabel: 'Supabase function: discipline-reports',
-              buildRequest: () => ({
-                functionName: 'discipline-reports'
-              })
+              mode: 'post',
+              endpointLabel: 'Prefect to Guidance reporting route',
+              run: async ({ studentNo, referenceNo, title, notes, status }) =>
+                dispatchPrefectDepartmentFlowFromDatabase({
+                  targetDepartmentKey: 'guidance',
+                  eventCode: 'discipline_reports',
+                  sourceRecordId: referenceNo || studentNo || 'reports-summary',
+                  payload: {
+                    student_no: studentNo,
+                    reference_no: referenceNo,
+                    title: title || 'Prefect Discipline Report Summary',
+                    notes,
+                    status,
+                    source_module: 'reports',
+                    totals: {
+                      complaints: stats.totalComplaints,
+                      incidents: stats.totalIncidents,
+                      duties: stats.totalDuties,
+                    },
+                    critical_counts: {
+                      unresolved_incidents: criticalIssues.unresolvedIncidents.length,
+                      pending_complaints: criticalIssues.pendingComplaints.length,
+                    },
+                  },
+                }),
             },
             {
               key: 'discipline-statistics',
-              title: 'Discipline Statistics',
-              description: 'Send discipline statistics to PMED.',
+              title: 'Send Report to PMED',
+              description: 'Send a Prefect discipline and incident report summary to PMED.',
               badge: 'PMED',
-              mode: 'function',
-              endpointLabel: 'Supabase function: discipline-statistics',
-              buildRequest: () => ({
-                functionName: 'discipline-statistics'
-              })
-            }
+              mode: 'post',
+              endpointLabel: 'Prefect to PMED reporting route',
+              run: async ({ referenceNo, title, notes, status }) =>
+                dispatchPrefectDepartmentFlowFromDatabase({
+                  targetDepartmentKey: 'pmed',
+                  eventCode: 'discipline_statistics',
+                  sourceRecordId: referenceNo || 'discipline-statistics',
+                  payload: {
+                    reference_no: referenceNo,
+                    title: title || 'Prefect Discipline and Incident Report',
+                    notes,
+                    status,
+                    source_module: 'reports',
+                    report_type: 'discipline_summary',
+                    report_name: title || 'Prefect Discipline and Incident Report',
+                    owner_name: 'Prefect Management',
+                    generated_at: new Date().toISOString(),
+                    total_users: stats.totalUsers,
+                    total_prefects: stats.totalPrefects,
+                    total_complaints: stats.totalComplaints,
+                    total_incidents: stats.totalIncidents,
+                    total_duties: stats.totalDuties,
+                    unresolved_incidents: criticalIssues.unresolvedIncidents.length,
+                    pending_complaints: criticalIssues.pendingComplaints.length,
+                  },
+                }),
+            },
           ]}
         />
+      </div>
+
+      <div className="mb-6 rounded-xl border border-border bg-card p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold">Recent PMED Reports</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Latest Prefect reports already sent to the connected PMED department through the shared PostgreSQL registry.
+            </p>
+          </div>
+          <Badge variant="outline">{pmedReports.length} sent</Badge>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          {pmedReports.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+              No PMED reports have been sent yet.
+            </div>
+          ) : (
+            pmedReports.slice(0, 5).map((record) => (
+              <div key={`${record.clearance_reference}-${record.id}`} className="rounded-lg border border-border p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{record.patient_name}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{record.clearance_reference}</p>
+                  </div>
+                  <Badge variant="outline">{record.status}</Badge>
+                </div>
+                <p className="mt-3 text-sm text-muted-foreground">{record.remarks || 'PMED report sent from Prefect.'}</p>
+                <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
+                  <span>Reference: {record.patient_code || 'Not set'}</span>
+                  <span>Department: {record.department_name}</span>
+                  <span>Updated: {new Date(record.updated_at).toLocaleString()}</span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       {/* Critical Alerts */}

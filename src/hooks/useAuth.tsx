@@ -48,7 +48,7 @@ const TEMP_BYPASS_ACCOUNTS: Record<string, {
     department: 'Administration',
   },
   'staff@gmail.com': {
-    password: 'staff123',
+    password: 'admin123',
     role: 'faculty',
     userId: '22222222-2222-4222-8222-222222222222',
     firstName: 'Staff',

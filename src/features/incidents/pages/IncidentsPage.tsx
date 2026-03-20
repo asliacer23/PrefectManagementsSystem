@@ -11,6 +11,10 @@ import IncidentsCRUD from '../components/IncidentsCRUD';
 import IncidentsView from '../components/IncidentsView';
 import * as incidentsService from '../services/incidentsService';
 import { fetchIncidentsFromBackend, seedIncidentsFromBackend } from '@/features/shared/services/backendAppDataService';
+import {
+  dispatchPrefectDepartmentFlowFromDatabase,
+  lookupRegistrarStudentsFromDatabase,
+} from '@/features/integrations/services/databaseIntegrationService';
 
 interface Incident {
   id: string;
@@ -27,7 +31,6 @@ interface Incident {
 export default function IncidentsPage() {
   const { user, hasRole } = useAuth();
   const isAdmin = hasRole('admin');
-  const registrarBaseUrl = 'http://localhost:3000/api/integrations';
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
@@ -81,55 +84,70 @@ export default function IncidentsPage() {
       <div className="mb-6">
         <ExternalIntegrationPanel
           title="Incident Integrations"
-          description="Registrar student identity lookup and discipline-related outgoing feeds are handled from the incidents workflow."
-          baseUrl={registrarBaseUrl}
+          description="Send incident-related data directly to connected departments and fetch Registrar records when you need verification."
+          baseUrl=""
           apiKey=""
           actions={[
             {
               key: 'student-personal-info',
-              title: 'Student Personal Information',
+              title: 'Fetch from Registrar',
               description: 'Receive student personal information from Registrar for discipline verification.',
               badge: 'Registrar',
               mode: 'fetch',
-              endpointLabel: 'GET /api/integrations?resource=student-personal-info&student_no=...',
-              buildRequest: (studentNo) => ({
-                url: `${registrarBaseUrl}?resource=student-personal-info&student_no=${encodeURIComponent(studentNo)}`
-              })
+              endpointLabel: 'Registrar student directory',
+              run: async ({ studentNo }) => {
+                const records = await lookupRegistrarStudentsFromDatabase(studentNo, studentNo ? 5 : 3);
+                return {
+                  ok: true,
+                  source: 'registrar.student_directory',
+                  records,
+                };
+              },
             },
             {
               key: 'discipline-records',
-              title: 'Discipline Records',
+              title: 'Send to Registrar',
               description: 'Send discipline records from Prefect to Registrar.',
               badge: 'Registrar',
               mode: 'post',
-              endpointLabel: 'POST /api/integrations { resource: discipline-records }',
-              buildRequest: (studentNo, referenceNo, title, notes, status) => ({
-                url: registrarBaseUrl,
-                init: {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    resource: 'discipline-records',
+              endpointLabel: 'Prefect to Registrar discipline route',
+              run: async ({ studentNo, referenceNo, title, notes, status }) =>
+                dispatchPrefectDepartmentFlowFromDatabase({
+                  targetDepartmentKey: 'registrar',
+                  eventCode: 'discipline_records',
+                  sourceRecordId: referenceNo || studentNo,
+                  payload: {
                     student_no: studentNo,
                     reference_no: referenceNo,
-                    title,
+                    title: title || 'Prefect Discipline Record',
                     notes,
                     status,
-                  })
-                }
-              })
+                    source_module: 'incidents',
+                  },
+                }),
             },
             {
               key: 'incident-reports',
-              title: 'Incident Reports',
-              description: 'Send incident reports to Clinic using the Prefect API endpoint.',
+              title: 'Send to Clinic',
+              description: 'Send incident reports to Clinic through the shared department-flow registry.',
               badge: 'Clinic',
-              mode: 'function',
-              endpointLabel: 'Supabase function: incident-reports',
-              buildRequest: () => ({
-                functionName: 'incident-reports'
-              })
-            }
+              mode: 'post',
+              endpointLabel: 'Prefect to Clinic incident route',
+              run: async ({ studentNo, referenceNo, title, notes, status }) =>
+                dispatchPrefectDepartmentFlowFromDatabase({
+                  targetDepartmentKey: 'clinic',
+                  eventCode: 'incident_reports',
+                  sourceRecordId: referenceNo || studentNo,
+                  payload: {
+                    student_no: studentNo,
+                    reference_no: referenceNo,
+                    title: title || 'Prefect Incident Report',
+                    notes,
+                    status,
+                    source_module: 'incidents',
+                  },
+                }),
+            },
           ]}
         />
       </div>

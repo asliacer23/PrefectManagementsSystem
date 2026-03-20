@@ -4,7 +4,7 @@ import AppLayout from '@/components/layout/AppLayout';
 import PageHeader from '@/components/layout/PageHeader';
 import StatsCard from '@/components/layout/StatsCard';
 import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/integrations/supabase/client';
+import { fetchDashboardFromBackend } from '@/features/shared/services/backendAppDataService';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function FacultyDashboard() {
@@ -15,22 +15,10 @@ export default function FacultyDashboard() {
 
   useEffect(() => {
     const fetchAll = async () => {
-      const [c, i, a, e, p, ev, rc, pa] = await Promise.all([
-        supabase.from('complaints').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-        supabase.from('incident_reports').select('id', { count: 'exact', head: true }).eq('is_resolved', false),
-        supabase.from('prefect_applications').select('id', { count: 'exact', head: true }).in('status', ['pending', 'under_review']),
-        supabase.from('events').select('id', { count: 'exact', head: true }).gte('event_date', new Date().toISOString().split('T')[0]),
-        supabase.from('user_roles').select('id', { count: 'exact', head: true }).eq('role', 'prefect'),
-        supabase.from('performance_evaluations').select('id', { count: 'exact', head: true }),
-        supabase.from('complaints').select('*').order('created_at', { ascending: false }).limit(5),
-        supabase.from('prefect_applications').select('*').in('status', ['pending', 'under_review']).order('created_at', { ascending: false }).limit(5),
-      ]);
-      setStats({
-        complaints: c.count || 0, incidents: i.count || 0, applications: a.count || 0,
-        events: e.count || 0, prefects: p.count || 0, evaluations: ev.count || 0,
-      });
-      if (rc.data) setRecentComplaints(rc.data);
-      if (pa.data) setPendingApps(pa.data);
+      const dashboard = await fetchDashboardFromBackend('faculty');
+      setStats(dashboard.stats);
+      setRecentComplaints(dashboard.recentComplaints ?? []);
+      setPendingApps(dashboard.pendingApps ?? []);
     };
     fetchAll();
   }, []);

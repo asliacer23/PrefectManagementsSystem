@@ -4,7 +4,7 @@ import AppLayout from '@/components/layout/AppLayout';
 import PageHeader from '@/components/layout/PageHeader';
 import StatsCard from '@/components/layout/StatsCard';
 import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/integrations/supabase/client';
+import { fetchDashboardFromBackend } from '@/features/shared/services/backendAppDataService';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function PrefectDashboard() {
@@ -15,24 +15,11 @@ export default function PrefectDashboard() {
 
   useEffect(() => {
     if (!user) return;
-    const today = new Date().toISOString().split('T')[0];
     const fetchAll = async () => {
-      const [md, mg, ma, ue, mr, mi, td, ri] = await Promise.all([
-        supabase.from('duty_assignments').select('id', { count: 'exact', head: true }).eq('prefect_id', user.id),
-        supabase.from('gate_assistance_logs').select('id', { count: 'exact', head: true }).eq('prefect_id', user.id),
-        supabase.from('attendance').select('id', { count: 'exact', head: true }).eq('prefect_id', user.id),
-        supabase.from('events').select('id', { count: 'exact', head: true }).gte('event_date', today),
-        supabase.from('weekly_reports').select('id', { count: 'exact', head: true }).eq('prefect_id', user.id),
-        supabase.from('incident_reports').select('id', { count: 'exact', head: true }).eq('reported_by', user.id),
-        supabase.from('duty_assignments').select('*').eq('prefect_id', user.id).gte('duty_date', today).order('duty_date').limit(5),
-        supabase.from('incident_reports').select('*').eq('reported_by', user.id).order('created_at', { ascending: false }).limit(5),
-      ]);
-      setStats({
-        myDuties: md.count || 0, myGateLogs: mg.count || 0, myAttendance: ma.count || 0,
-        upcomingEvents: ue.count || 0, myReports: mr.count || 0, myIncidents: mi.count || 0,
-      });
-      if (td.data) setTodayDuties(td.data);
-      if (ri.data) setRecentIncidents(ri.data);
+      const dashboard = await fetchDashboardFromBackend('prefect', user.id);
+      setStats(dashboard.stats);
+      setTodayDuties(dashboard.todayDuties ?? []);
+      setRecentIncidents(dashboard.recentIncidents ?? []);
     };
     fetchAll();
   }, [user]);

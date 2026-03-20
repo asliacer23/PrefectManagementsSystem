@@ -323,7 +323,7 @@ export async function seedDutiesData() {
         start_time: '11:30',
         end_time: '13:00',
         location: 'Main Hallway',
-        status: 'in_progress',
+        status: 'assigned',
         assigned_by: FACULTY_ID,
       },
     ],

@@ -1,8 +1,9 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react-swc";
+import { statSync } from "fs";
 import path from "path";
+import { pathToFileURL } from "url";
 import { componentTagger } from "lovable-tagger";
-import { handler as appDataHandler } from "./netlify/functions/app-data.js";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -24,30 +25,42 @@ export default defineConfig(({ mode }) => {
       mode === "development" && {
         name: "app-data-dev-api",
         configureServer(server) {
-          server.middlewares.use("/api/app-data", async (req, res) => {
-            const requestUrl = new URL(req.url ?? "/", "http://localhost");
-            const queryStringParameters = Object.fromEntries(requestUrl.searchParams.entries());
-            const chunks: Buffer[] = [];
-            await new Promise<void>((resolve) => {
-              req.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
-              req.on("end", () => resolve());
-            });
-            const result = await appDataHandler({
-              queryStringParameters,
-              httpMethod: req.method,
-              body: chunks.length > 0 ? Buffer.concat(chunks).toString("utf8") : undefined,
-            });
+          const loadFunctionModule = async (importPath) => {
+            const absolutePath = path.resolve(process.cwd(), importPath);
+            const version = statSync(absolutePath).mtimeMs;
+            return import(`${pathToFileURL(absolutePath).href}?t=${version}`);
+          };
 
-            res.statusCode = result.statusCode ?? 200;
-
-            if (result.headers) {
-              Object.entries(result.headers).forEach(([key, value]) => {
-                res.setHeader(key, value);
+          const registerFunctionRoute = (route, importPath) => {
+            server.middlewares.use(route, async (req, res) => {
+              const { handler } = await loadFunctionModule(importPath);
+              const requestUrl = new URL(req.url ?? "/", "http://localhost");
+              const queryStringParameters = Object.fromEntries(requestUrl.searchParams.entries());
+              const chunks: Buffer[] = [];
+              await new Promise<void>((resolve) => {
+                req.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+                req.on("end", () => resolve());
               });
-            }
+              const result = await handler({
+                queryStringParameters,
+                httpMethod: req.method,
+                body: chunks.length > 0 ? Buffer.concat(chunks).toString("utf8") : undefined,
+              });
 
-            res.end(result.body ?? "");
-          });
+              res.statusCode = result.statusCode ?? 200;
+
+              if (result.headers) {
+                Object.entries(result.headers).forEach(([key, value]) => {
+                  res.setHeader(key, value);
+                });
+              }
+
+              res.end(result.body ?? "");
+            });
+          };
+
+          registerFunctionRoute("/api/app-data", "./netlify/functions/app-data.js");
+          registerFunctionRoute("/api/integrations-hub", "./netlify/functions/integrations-hub.js");
         },
       },
     ].filter(Boolean),

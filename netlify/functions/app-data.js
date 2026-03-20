@@ -32,9 +32,115 @@ function dateOffset(days) {
   return date.toISOString().split("T")[0];
 }
 
+async function fetchDashboardData(client, role, userId) {
+  const today = dateOffset(0);
+
+  if (role === "admin") {
+    const [totalUsers, activePrefects, pendingComplaints, openIncidents, pendingApplications, todayDuties, recentComplaints, recentIncidents, upcomingEvents] = await Promise.all([
+      client.query(`select count(*)::int as count from prefect.profiles`),
+      client.query(`select count(*)::int as count from prefect.user_roles where role = 'prefect'`),
+      client.query(`select count(*)::int as count from prefect.complaints where status = 'pending'`),
+      client.query(`select count(*)::int as count from prefect.incident_reports where is_resolved = false`),
+      client.query(`select count(*)::int as count from prefect.prefect_applications where status = 'pending'`),
+      client.query(`select count(*)::int as count from prefect.duty_assignments where duty_date = $1`, [today]),
+      client.query(`select id, subject, status, created_at from prefect.complaints order by created_at desc limit 5`),
+      client.query(`select id, title, severity, location, created_at from prefect.incident_reports order by created_at desc limit 5`),
+      client.query(`select id, title, event_date, start_time, location from prefect.events where event_date >= $1 order by event_date asc limit 5`, [today]),
+    ]);
+
+    return {
+      stats: {
+        totalUsers: totalUsers.rows[0]?.count ?? 0,
+        activePrefects: activePrefects.rows[0]?.count ?? 0,
+        pendingComplaints: pendingComplaints.rows[0]?.count ?? 0,
+        openIncidents: openIncidents.rows[0]?.count ?? 0,
+        pendingApplications: pendingApplications.rows[0]?.count ?? 0,
+        todayDuties: todayDuties.rows[0]?.count ?? 0,
+      },
+      recentComplaints: recentComplaints.rows,
+      recentIncidents: recentIncidents.rows,
+      upcomingEvents: upcomingEvents.rows,
+    };
+  }
+
+  if (role === "faculty") {
+    const [complaints, incidents, applications, events, prefects, evaluations, recentComplaints, pendingApps] = await Promise.all([
+      client.query(`select count(*)::int as count from prefect.complaints where status = 'pending'`),
+      client.query(`select count(*)::int as count from prefect.incident_reports where is_resolved = false`),
+      client.query(`select count(*)::int as count from prefect.prefect_applications where status in ('pending', 'under_review')`),
+      client.query(`select count(*)::int as count from prefect.events where event_date >= $1`, [today]),
+      client.query(`select count(*)::int as count from prefect.user_roles where role = 'prefect'`),
+      client.query(`select count(*)::int as count from prefect.performance_evaluations`),
+      client.query(`select id, subject, status, created_at from prefect.complaints order by created_at desc limit 5`),
+      client.query(`select id, statement, gpa, status, created_at from prefect.prefect_applications where status in ('pending', 'under_review') order by created_at desc limit 5`),
+    ]);
+
+    return {
+      stats: {
+        complaints: complaints.rows[0]?.count ?? 0,
+        incidents: incidents.rows[0]?.count ?? 0,
+        applications: applications.rows[0]?.count ?? 0,
+        events: events.rows[0]?.count ?? 0,
+        prefects: prefects.rows[0]?.count ?? 0,
+        evaluations: evaluations.rows[0]?.count ?? 0,
+      },
+      recentComplaints: recentComplaints.rows,
+      pendingApps: pendingApps.rows,
+    };
+  }
+
+  if (role === "prefect") {
+    const effectiveUserId = userId || PREFECT_ID;
+    const [myDuties, myGateLogs, myAttendance, upcomingEvents, myReports, myIncidents, todayDuties, recentIncidents] = await Promise.all([
+      client.query(`select count(*)::int as count from prefect.duty_assignments where prefect_id = $1`, [effectiveUserId]),
+      client.query(`select count(*)::int as count from prefect.gate_assistance_logs where prefect_id = $1`, [effectiveUserId]),
+      client.query(`select count(*)::int as count from prefect.attendance where prefect_id = $1`, [effectiveUserId]),
+      client.query(`select count(*)::int as count from prefect.events where event_date >= $1`, [today]),
+      client.query(`select count(*)::int as count from prefect.weekly_reports where prefect_id = $1`, [effectiveUserId]),
+      client.query(`select count(*)::int as count from prefect.incident_reports where reported_by = $1`, [effectiveUserId]),
+      client.query(`select id, title, duty_date, start_time, location, status from prefect.duty_assignments where prefect_id = $1 and duty_date >= $2 order by duty_date asc limit 5`, [effectiveUserId, today]),
+      client.query(`select id, title, location, created_at from prefect.incident_reports where reported_by = $1 order by created_at desc limit 5`, [effectiveUserId]),
+    ]);
+
+    return {
+      stats: {
+        myDuties: myDuties.rows[0]?.count ?? 0,
+        myGateLogs: myGateLogs.rows[0]?.count ?? 0,
+        myAttendance: myAttendance.rows[0]?.count ?? 0,
+        upcomingEvents: upcomingEvents.rows[0]?.count ?? 0,
+        myReports: myReports.rows[0]?.count ?? 0,
+        myIncidents: myIncidents.rows[0]?.count ?? 0,
+      },
+      todayDuties: todayDuties.rows,
+      recentIncidents: recentIncidents.rows,
+    };
+  }
+
+  const effectiveUserId = userId || STUDENT_ID;
+  const [myComplaints, myApplications, trainingMaterials, upcomingEvents, recentComplaints, events] = await Promise.all([
+    client.query(`select count(*)::int as count from prefect.complaints where submitted_by = $1`, [effectiveUserId]),
+    client.query(`select count(*)::int as count from prefect.prefect_applications where applicant_id = $1`, [effectiveUserId]),
+    client.query(`select count(*)::int as count from prefect.training_materials where is_published = true`),
+    client.query(`select count(*)::int as count from prefect.events where event_date >= $1`, [today]),
+    client.query(`select id, subject, status, created_at from prefect.complaints where submitted_by = $1 order by created_at desc limit 5`, [effectiveUserId]),
+    client.query(`select id, title, event_date, location from prefect.events where event_date >= $1 order by event_date asc limit 5`, [today]),
+  ]);
+
+  return {
+    stats: {
+      myComplaints: myComplaints.rows[0]?.count ?? 0,
+      myApplications: myApplications.rows[0]?.count ?? 0,
+      trainingMaterials: trainingMaterials.rows[0]?.count ?? 0,
+      upcomingEvents: upcomingEvents.rows[0]?.count ?? 0,
+    },
+    recentComplaints: recentComplaints.rows,
+    events: events.rows,
+  };
+}
+
 async function ensureCoreSeedData(client) {
   await client.query(`
-    insert into public.profiles (id, student_id, first_name, last_name, email, phone, department, year_level, section)
+    insert into prefect.profiles (id, student_id, first_name, last_name, email, phone, department, year_level, section)
     values
       ('${ADMIN_ID}', 'A-2026-0001', 'Admin', 'User', 'admin@gmail.com', '09170000001', 'Administration', null, null),
       ('${FACULTY_ID}', 'F-2026-0001', 'Staff', 'User', 'staff@gmail.com', '09170000002', 'Guidance Office', null, null),
@@ -52,7 +158,7 @@ async function ensureCoreSeedData(client) {
   `);
 
   await client.query(`
-    insert into public.user_roles (user_id, role, assigned_by)
+    insert into prefect.user_roles (user_id, role, assigned_by)
     values
       ('${ADMIN_ID}', 'admin', '${ADMIN_ID}'),
       ('${FACULTY_ID}', 'faculty', '${ADMIN_ID}'),
@@ -62,7 +168,7 @@ async function ensureCoreSeedData(client) {
   `);
 
   await client.query(`
-    insert into public.academic_years (id, year_start, year_end, semester, is_current)
+    insert into prefect.academic_years (id, year_start, year_end, semester, is_current)
     values ('${ACADEMIC_YEAR_ID}', 2025, 2026, '2nd Semester', true)
     on conflict (id) do update set
       year_start = excluded.year_start,
@@ -75,7 +181,7 @@ async function ensureCoreSeedData(client) {
 async function seedTraining(client) {
   await ensureCoreSeedData(client);
   await client.query(`
-    insert into public.training_categories (id, name, description)
+    insert into prefect.training_categories (id, name, description)
     values
       ('70000000-0000-4000-8000-000000000001', 'Policies', 'School rules, discipline code, and prefect procedures'),
       ('70000000-0000-4000-8000-000000000002', 'Operations', 'Duty workflow and reporting operations'),
@@ -85,7 +191,7 @@ async function seedTraining(client) {
       description = excluded.description
   `);
   await client.query(`
-    insert into public.training_materials (id, category_id, title, content, created_by, is_published)
+    insert into prefect.training_materials (id, category_id, title, content, created_by, is_published)
     values
       ('71000000-0000-4000-8000-000000000001', '70000000-0000-4000-8000-000000000001', 'Prefect Code of Conduct', 'Maintain professionalism, accurate reporting, and respectful intervention in all student-facing duties.', '${ADMIN_ID}', true),
       ('71000000-0000-4000-8000-000000000002', '70000000-0000-4000-8000-000000000002', 'Daily Duty Handover Guide', 'Review the assigned post, confirm attendance, log notable activity, and submit reports before end of shift.', '${ADMIN_ID}', true),
@@ -103,7 +209,7 @@ async function seedTraining(client) {
 async function seedComplaints(client) {
   await ensureCoreSeedData(client);
   await client.query(`
-    insert into public.complaints (id, submitted_by, subject, description, status, assigned_to)
+    insert into prefect.complaints (id, submitted_by, subject, description, status, assigned_to)
     values
       ('9a000000-0000-4000-8000-000000000001', '${STUDENT_ID}', 'Noise disturbance near Room 204', 'Several students were making excessive noise during the afternoon study period.', 'pending', '${ADMIN_ID}'),
       ('9a000000-0000-4000-8000-000000000002', '${STUDENT_ID}', 'Queue management concern', 'The registrar waiting line became crowded during lunch break and needed clearer control.', 'in_progress', '${FACULTY_ID}')
@@ -118,7 +224,7 @@ async function seedComplaints(client) {
 async function seedIncidents(client) {
   await ensureCoreSeedData(client);
   await client.query(`
-    insert into public.incident_reports (id, reported_by, title, description, severity, location, incident_date, is_resolved, resolved_by, resolved_at)
+    insert into prefect.incident_reports (id, reported_by, title, description, severity, location, incident_date, is_resolved, resolved_by, resolved_at)
     values
       ('9b000000-0000-4000-8000-000000000001', '${PREFECT_ID}', 'Hallway altercation', 'A brief verbal altercation occurred near the east hallway and required intervention.', 'high', 'East Hallway', now(), false, null, null),
       ('9b000000-0000-4000-8000-000000000002', '${PREFECT_ID}', 'Clinic referral follow-up', 'A student felt dizzy during assembly and was escorted to the clinic.', 'low', 'Quadrangle', now() - interval '1 day', true, '${FACULTY_ID}', now() - interval '23 hour')
@@ -137,10 +243,10 @@ async function seedIncidents(client) {
 async function seedDuties(client) {
   await ensureCoreSeedData(client);
   await client.query(`
-    insert into public.duty_assignments (id, prefect_id, title, description, duty_date, start_time, end_time, location, status, assigned_by)
+    insert into prefect.duty_assignments (id, prefect_id, title, description, duty_date, start_time, end_time, location, status, assigned_by)
     values
       ('9c000000-0000-4000-8000-000000000001', '${PREFECT_ID}', 'Morning Gate Monitoring', 'Monitor student flow and uniform compliance at the main gate.', '${dateOffset(0)}', '07:00', '09:00', 'Main Gate', 'assigned', '${ADMIN_ID}'),
-      ('9c000000-0000-4000-8000-000000000002', '${PREFECT_ID}', 'Lunch Break Hallway Watch', 'Oversee hallway movement during lunch break.', '${dateOffset(1)}', '11:30', '13:00', 'Main Hallway', 'in_progress', '${FACULTY_ID}')
+      ('9c000000-0000-4000-8000-000000000002', '${PREFECT_ID}', 'Lunch Break Hallway Watch', 'Oversee hallway movement during lunch break.', '${dateOffset(1)}', '11:30', '13:00', 'Main Hallway', 'assigned', '${FACULTY_ID}')
     on conflict (id) do update set
       title = excluded.title,
       description = excluded.description,
@@ -156,7 +262,7 @@ async function seedDuties(client) {
 async function seedEvents(client) {
   await ensureCoreSeedData(client);
   await client.query(`
-    insert into public.events (id, title, description, event_date, start_time, end_time, location, created_by)
+    insert into prefect.events (id, title, description, event_date, start_time, end_time, location, created_by)
     values
       ('9d000000-0000-4000-8000-000000000001', 'Campus Leadership Assembly', 'Leadership briefing for student officers and prefect members.', '${dateOffset(2)}', '10:00', '12:00', 'Auditorium', '${ADMIN_ID}'),
       ('9d000000-0000-4000-8000-000000000002', 'Safety Awareness Seminar', 'Coordination event with clinic and student affairs on campus safety.', '${dateOffset(5)}', '14:00', '16:00', 'Multi-Purpose Hall', '${FACULTY_ID}')
@@ -174,7 +280,7 @@ async function seedEvents(client) {
 async function seedGateLogs(client) {
   await ensureCoreSeedData(client);
   await client.query(`
-    insert into public.gate_assistance_logs (id, prefect_id, log_date, time_in, time_out, notes)
+    insert into prefect.gate_assistance_logs (id, prefect_id, log_date, time_in, time_out, notes)
     values
       ('95000000-0000-4000-8000-000000000001', '${PREFECT_ID}', '${dateOffset(-1)}', '07:05', '09:00', 'Assisted with ID checks and student queue control at the front gate.'),
       ('95000000-0000-4000-8000-000000000002', '${PREFECT_ID}', '${dateOffset(-3)}', '06:58', '08:45', 'Handled visitor redirection and coordinated with security.')
@@ -189,7 +295,7 @@ async function seedGateLogs(client) {
 async function seedAttendance(client) {
   await ensureCoreSeedData(client);
   await client.query(`
-    insert into public.attendance (id, prefect_id, date, time_in, time_out, status, notes)
+    insert into prefect.attendance (id, prefect_id, date, time_in, time_out, status, notes)
     values
       ('96000000-0000-4000-8000-000000000001', '${PREFECT_ID}', '${dateOffset(-1)}', '${dateOffset(-1)}T07:00:00', '${dateOffset(-1)}T15:00:00', 'present', 'Completed full duty coverage and submitted reports on time.'),
       ('96000000-0000-4000-8000-000000000002', '${PREFECT_ID}', '${dateOffset(-2)}', '${dateOffset(-2)}T07:18:00', '${dateOffset(-2)}T15:02:00', 'late', 'Arrived after weather delay and completed shift.'),
@@ -206,7 +312,7 @@ async function seedAttendance(client) {
 async function seedEvaluations(client) {
   await ensureCoreSeedData(client);
   await client.query(`
-    insert into public.performance_evaluations (id, prefect_id, evaluator_id, academic_year_id, rating, comments)
+    insert into prefect.performance_evaluations (id, prefect_id, evaluator_id, academic_year_id, rating, comments)
     values
       ('97000000-0000-4000-8000-000000000001', '${PREFECT_ID}', '${ADMIN_ID}', '${ACADEMIC_YEAR_ID}', 5, 'Consistently strong field reporting and dependable event support.'),
       ('97000000-0000-4000-8000-000000000002', '${PREFECT_ID}', '${FACULTY_ID}', '${ACADEMIC_YEAR_ID}', 4, 'Shows initiative during gate deployment and coordinates well with staff.')
@@ -221,7 +327,7 @@ async function seedEvaluations(client) {
 async function seedRecruitment(client) {
   await ensureCoreSeedData(client);
   await client.query(`
-    insert into public.prefect_applications (id, applicant_id, academic_year_id, statement, gpa, status, reviewed_by, review_notes)
+    insert into prefect.prefect_applications (id, applicant_id, academic_year_id, statement, gpa, status, reviewed_by, review_notes)
     values
       ('98000000-0000-4000-8000-000000000001', '${STUDENT_ID}', '${ACADEMIC_YEAR_ID}', 'I want to help maintain order, support school events, and grow as a student leader.', 1.75, 'under_review', '${FACULTY_ID}', 'Candidate shows good standing and positive conduct record.')
     on conflict (id) do update set
@@ -237,7 +343,7 @@ async function seedRecruitment(client) {
 async function seedWeeklyReports(client) {
   await ensureCoreSeedData(client);
   await client.query(`
-    insert into public.weekly_reports (id, prefect_id, week_start, week_end, summary, achievements, challenges)
+    insert into prefect.weekly_reports (id, prefect_id, week_start, week_end, summary, achievements, challenges)
     values
       ('99000000-0000-4000-8000-000000000001', '${PREFECT_ID}', '${dateOffset(-7)}', '${dateOffset(-1)}', 'Managed gate operations, monitored hallway flow, and followed up on one incident referral.', 'Improved queue handling during peak morning entry.', 'Needed faster coordination during rain-related congestion.'),
       ('99000000-0000-4000-8000-000000000002', '${PREFECT_ID}', '${dateOffset(-14)}', '${dateOffset(-8)}', 'Supported event marshaling and completed incident documentation review.', 'Maintained clean handover notes across shifts.', 'Repeat noise complaints required closer faculty coordination.')
@@ -252,54 +358,54 @@ async function seedWeeklyReports(client) {
 
 const fetchers = {
   async complaints(client) {
-    const { rows } = await client.query(`select id, subject, description, status, submitted_by, created_at, updated_at from public.complaints order by created_at desc`);
+    const { rows } = await client.query(`select id, subject, description, status, submitted_by, created_at, updated_at from prefect.complaints order by created_at desc`);
     return { complaints: rows };
   },
   async incidents(client) {
-    const { rows } = await client.query(`select id, title, description, severity, location, is_resolved, reported_by, created_at, updated_at from public.incident_reports order by created_at desc`);
+    const { rows } = await client.query(`select id, title, description, severity, location, is_resolved, reported_by, created_at, updated_at from prefect.incident_reports order by created_at desc`);
     return { incidents: rows };
   },
   async duties(client) {
     const [duties, profiles] = await Promise.all([
-      client.query(`select id, prefect_id, title, description, duty_date, start_time, end_time, location, status, assigned_by, created_at, updated_at from public.duty_assignments order by duty_date desc, created_at desc`),
-      client.query(`select p.id, p.first_name, p.last_name, p.email from public.profiles p join public.user_roles ur on ur.user_id = p.id where ur.role = 'prefect' order by p.first_name asc`),
+      client.query(`select id, prefect_id, title, description, duty_date, start_time, end_time, location, status, assigned_by, created_at, updated_at from prefect.duty_assignments order by duty_date desc, created_at desc`),
+      client.query(`select p.id, p.first_name, p.last_name, p.email from prefect.profiles p join prefect.user_roles ur on ur.user_id = p.id where ur.role = 'prefect' order by p.first_name asc`),
     ]);
     return { duties: duties.rows, profiles: profiles.rows };
   },
   async events(client) {
     const [events, profiles] = await Promise.all([
-      client.query(`select id, title, description, event_date, start_time, end_time, location, created_by, created_at, updated_at from public.events order by event_date asc, created_at desc`),
-      client.query(`select id, first_name, last_name from public.profiles order by first_name asc`),
+      client.query(`select id, title, description, event_date, start_time, end_time, location, created_by, created_at, updated_at from prefect.events order by event_date asc, created_at desc`),
+      client.query(`select id, first_name, last_name from prefect.profiles order by first_name asc`),
     ]);
     return { events: events.rows, profiles: profiles.rows };
   },
   async training(client) {
     const [categories, materials] = await Promise.all([
-      client.query(`select id, name, description from public.training_categories order by name asc`),
-      client.query(`select id, title, content, is_published, category_id, created_at from public.training_materials order by created_at desc`),
+      client.query(`select id, name, description from prefect.training_categories order by name asc`),
+      client.query(`select id, title, content, is_published, category_id, created_at from prefect.training_materials order by created_at desc`),
     ]);
     return { categories: categories.rows, materials: materials.rows };
   },
   async "gate-logs"(client) {
     const [logs, profiles] = await Promise.all([
-      client.query(`select id, prefect_id, log_date, time_in, time_out, notes, created_at from public.gate_assistance_logs order by log_date desc, created_at desc`),
-      client.query(`select p.id, p.first_name, p.last_name from public.profiles p join public.user_roles ur on ur.user_id = p.id where ur.role = 'prefect' order by p.first_name asc`),
+      client.query(`select id, prefect_id, log_date, time_in, time_out, notes, created_at from prefect.gate_assistance_logs order by log_date desc, created_at desc`),
+      client.query(`select p.id, p.first_name, p.last_name from prefect.profiles p join prefect.user_roles ur on ur.user_id = p.id where ur.role = 'prefect' order by p.first_name asc`),
     ]);
     return { logs: logs.rows, profiles: profiles.rows };
   },
   async attendance(client) {
     const [attendance, profiles] = await Promise.all([
-      client.query(`select id, prefect_id, date, time_in, time_out, status, notes, created_at from public.attendance order by date desc, created_at desc`),
-      client.query(`select p.id, p.first_name, p.last_name, p.email from public.profiles p join public.user_roles ur on ur.user_id = p.id where ur.role = 'prefect' order by p.first_name asc`),
+      client.query(`select id, prefect_id, date, time_in, time_out, status, notes, created_at from prefect.attendance order by date desc, created_at desc`),
+      client.query(`select p.id, p.first_name, p.last_name, p.email from prefect.profiles p join prefect.user_roles ur on ur.user_id = p.id where ur.role = 'prefect' order by p.first_name asc`),
     ]);
     return { attendance: attendance.rows, profiles: profiles.rows };
   },
   async evaluations(client) {
     const [evaluations, prefectProfiles, adminProfiles, academicYears] = await Promise.all([
-      client.query(`select id, prefect_id, evaluator_id, academic_year_id, rating, comments, created_at from public.performance_evaluations order by created_at desc`),
-      client.query(`select p.id, p.first_name, p.last_name, p.email from public.profiles p join public.user_roles ur on ur.user_id = p.id where ur.role = 'prefect' order by p.first_name asc`),
-      client.query(`select p.id, p.first_name, p.last_name, p.email from public.profiles p join public.user_roles ur on ur.user_id = p.id where ur.role in ('admin', 'faculty') order by p.first_name asc`),
-      client.query(`select id, year_start, year_end, semester, is_current from public.academic_years order by year_start desc, year_end desc`),
+      client.query(`select id, prefect_id, evaluator_id, academic_year_id, rating, comments, created_at from prefect.performance_evaluations order by created_at desc`),
+      client.query(`select p.id, p.first_name, p.last_name, p.email from prefect.profiles p join prefect.user_roles ur on ur.user_id = p.id where ur.role = 'prefect' order by p.first_name asc`),
+      client.query(`select p.id, p.first_name, p.last_name, p.email from prefect.profiles p join prefect.user_roles ur on ur.user_id = p.id where ur.role in ('admin', 'faculty') order by p.first_name asc`),
+      client.query(`select id, year_start, year_end, semester, is_current from prefect.academic_years order by year_start desc, year_end desc`),
     ]);
     return {
       evaluations: evaluations.rows,
@@ -310,9 +416,9 @@ const fetchers = {
   },
   async recruitment(client) {
     const [applications, profiles, currentAcademicYear] = await Promise.all([
-      client.query(`select id, applicant_id, statement, gpa, status, review_notes, reviewed_by, created_at, updated_at from public.prefect_applications order by created_at desc`),
-      client.query(`select id, first_name, last_name, student_id from public.profiles order by first_name asc`),
-      client.query(`select id from public.academic_years where is_current = true limit 1`),
+      client.query(`select id, applicant_id, statement, gpa, status, review_notes, reviewed_by, created_at, updated_at from prefect.prefect_applications order by created_at desc`),
+      client.query(`select id, first_name, last_name, student_id from prefect.profiles order by first_name asc`),
+      client.query(`select id from prefect.academic_years where is_current = true limit 1`),
     ]);
     return {
       applications: applications.rows,
@@ -321,8 +427,13 @@ const fetchers = {
     };
   },
   async "weekly-reports"(client) {
-    const { rows } = await client.query(`select id, prefect_id, week_start, week_end, summary, achievements, challenges, created_at from public.weekly_reports order by week_start desc, created_at desc`);
+    const { rows } = await client.query(`select id, prefect_id, week_start, week_end, summary, achievements, challenges, created_at from prefect.weekly_reports order by week_start desc, created_at desc`);
     return { reports: rows };
+  },
+  async dashboard(client, event) {
+    const role = event.queryStringParameters?.role ?? "student";
+    const userId = event.queryStringParameters?.userId;
+    return fetchDashboardData(client, role, userId);
   },
 };
 
@@ -352,9 +463,8 @@ export async function handler(event) {
     return json(400, { ok: false, error: `Unsupported resource "${resource ?? ""}".` });
   }
 
-  let client;
   try {
-    client = await pool.connect();
+    const db = pool;
 
     if (resource === "training" && method === "POST") {
       const body = event.body ? JSON.parse(event.body) : {};
@@ -362,9 +472,9 @@ export async function handler(event) {
       const payload = body?.payload ?? {};
 
       if (action === "create-category") {
-        const { rows } = await client.query(
+        const { rows } = await db.query(
           `
-            insert into public.training_categories (name, description)
+            insert into prefect.training_categories (name, description)
             values ($1, $2)
             returning id, name, description
           `,
@@ -374,9 +484,9 @@ export async function handler(event) {
       }
 
       if (action === "update-category") {
-        const { rows } = await client.query(
+        const { rows } = await db.query(
           `
-            update public.training_categories
+            update prefect.training_categories
             set name = $2, description = $3
             where id = $1
             returning id, name, description
@@ -387,14 +497,14 @@ export async function handler(event) {
       }
 
       if (action === "delete-category") {
-        await client.query(`delete from public.training_categories where id = $1`, [payload.id]);
+        await db.query(`delete from prefect.training_categories where id = $1`, [payload.id]);
         return json(200, { ok: true, resource, action, data: true });
       }
 
       if (action === "create-material") {
-        const { rows } = await client.query(
+        const { rows } = await db.query(
           `
-            insert into public.training_materials (title, content, category_id, is_published, created_by)
+            insert into prefect.training_materials (title, content, category_id, is_published, created_by)
             values ($1, $2, $3, $4, $5)
             returning id, title, content, is_published, category_id, created_at
           `,
@@ -410,9 +520,9 @@ export async function handler(event) {
       }
 
       if (action === "update-material") {
-        const { rows } = await client.query(
+        const { rows } = await db.query(
           `
-            update public.training_materials
+            update prefect.training_materials
             set title = $2, content = $3, category_id = $4, is_published = $5
             where id = $1
             returning id, title, content, is_published, category_id, created_at
@@ -429,7 +539,7 @@ export async function handler(event) {
       }
 
       if (action === "delete-material") {
-        await client.query(`delete from public.training_materials where id = $1`, [payload.id]);
+        await db.query(`delete from prefect.training_materials where id = $1`, [payload.id]);
         return json(200, { ok: true, resource, action, data: true });
       }
 
@@ -437,14 +547,13 @@ export async function handler(event) {
     }
 
     if (mode === "seed") {
-      await seeders[resource](client);
+      await seeders[resource](db);
     }
 
-    const data = await fetchers[resource](client);
+    const data = await fetchers[resource](db, event);
     return json(200, { ok: true, resource, mode, data });
   } catch (error) {
     return json(500, { ok: false, error: error instanceof Error ? error.message : "Database request failed." });
-  } finally {
-    client?.release();
   }
 }
+

@@ -89,7 +89,7 @@ export function QuickChatSearch({
       // Check if direct conversation already exists
       const existingConv = currentConversations.find((conv) => {
         if (conv.type !== "group") {
-          const convParticipants = (conv as any).participants || [];
+          const convParticipants = (conv as any).conversation_participants || [];
           return (
             convParticipants.some(
               (p: any) => p.participant_id === selectedUser.id

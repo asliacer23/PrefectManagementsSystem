@@ -1,7 +1,15 @@
-const APP_DATA_BASE_URL = import.meta.env.DEV ? '/api/app-data' : '/.netlify/functions/app-data';
+const APP_DATA_BASE_URL = '/api/app-data';
 
-async function request(resource: string, mode: 'fetch' | 'seed' = 'fetch') {
-  const response = await fetch(`${APP_DATA_BASE_URL}?resource=${encodeURIComponent(resource)}&mode=${mode}`, {
+async function request(resource: string, mode: 'fetch' | 'seed' = 'fetch', params?: Record<string, string>) {
+  const url = new URL(APP_DATA_BASE_URL, window.location.origin);
+  url.searchParams.set('resource', resource);
+  url.searchParams.set('mode', mode);
+
+  Object.entries(params ?? {}).forEach(([key, value]) => {
+    url.searchParams.set(key, value);
+  });
+
+  const response = await fetch(url.toString(), {
     method: 'GET',
     headers: { Accept: 'application/json' },
   });
@@ -84,3 +92,6 @@ export const seedRecruitmentFromBackend = () => request('recruitment', 'seed');
 
 export const fetchWeeklyReportsFromBackend = () => request('weekly-reports');
 export const seedWeeklyReportsFromBackend = () => request('weekly-reports', 'seed');
+
+export const fetchDashboardFromBackend = (role: 'admin' | 'faculty' | 'prefect' | 'student', userId?: string) =>
+  request('dashboard', 'fetch', userId ? { role, userId } : { role });

@@ -4,7 +4,7 @@ import AppLayout from '@/components/layout/AppLayout';
 import PageHeader from '@/components/layout/PageHeader';
 import StatsCard from '@/components/layout/StatsCard';
 import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/integrations/supabase/client';
+import { fetchDashboardFromBackend } from '@/features/shared/services/backendAppDataService';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function StudentDashboard() {
@@ -16,20 +16,10 @@ export default function StudentDashboard() {
   useEffect(() => {
     if (!user) return;
     const fetchAll = async () => {
-      const [mc, ma, tm, ue, rc, ev] = await Promise.all([
-        supabase.from('complaints').select('id', { count: 'exact', head: true }).eq('submitted_by', user.id),
-        supabase.from('prefect_applications').select('id', { count: 'exact', head: true }).eq('applicant_id', user.id),
-        supabase.from('training_materials').select('id', { count: 'exact', head: true }).eq('is_published', true),
-        supabase.from('events').select('id', { count: 'exact', head: true }).gte('event_date', new Date().toISOString().split('T')[0]),
-        supabase.from('complaints').select('*').eq('submitted_by', user.id).order('created_at', { ascending: false }).limit(5),
-        supabase.from('events').select('*').gte('event_date', new Date().toISOString().split('T')[0]).order('event_date').limit(5),
-      ]);
-      setStats({
-        myComplaints: mc.count || 0, myApplications: ma.count || 0,
-        trainingMaterials: tm.count || 0, upcomingEvents: ue.count || 0,
-      });
-      if (rc.data) setRecentComplaints(rc.data);
-      if (ev.data) setEvents(ev.data);
+      const dashboard = await fetchDashboardFromBackend('student', user.id);
+      setStats(dashboard.stats);
+      setRecentComplaints(dashboard.recentComplaints ?? []);
+      setEvents(dashboard.events ?? []);
     };
     fetchAll();
   }, [user]);

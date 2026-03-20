@@ -4,7 +4,7 @@ import AppLayout from '@/components/layout/AppLayout';
 import PageHeader from '@/components/layout/PageHeader';
 import StatsCard from '@/components/layout/StatsCard';
 import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/integrations/supabase/client';
+import { fetchDashboardFromBackend } from '@/features/shared/services/backendAppDataService';
 
 interface DashboardStats {
   totalUsers: number;
@@ -26,28 +26,11 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const fetchAll = async () => {
-      const [users, prefects, complaints, incidents, applications, duties, rc, ri, ue] = await Promise.all([
-        supabase.from('profiles').select('id', { count: 'exact', head: true }),
-        supabase.from('user_roles').select('id', { count: 'exact', head: true }).eq('role', 'prefect'),
-        supabase.from('complaints').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-        supabase.from('incident_reports').select('id', { count: 'exact', head: true }).eq('is_resolved', false),
-        supabase.from('prefect_applications').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-        supabase.from('duty_assignments').select('id', { count: 'exact', head: true }).eq('duty_date', new Date().toISOString().split('T')[0]),
-        supabase.from('complaints').select('*').order('created_at', { ascending: false }).limit(5),
-        supabase.from('incident_reports').select('*').order('created_at', { ascending: false }).limit(5),
-        supabase.from('events').select('*').gte('event_date', new Date().toISOString().split('T')[0]).order('event_date').limit(5),
-      ]);
-      setStats({
-        totalUsers: users.count || 0,
-        activePrefects: prefects.count || 0,
-        pendingComplaints: complaints.count || 0,
-        openIncidents: incidents.count || 0,
-        pendingApplications: applications.count || 0,
-        todayDuties: duties.count || 0,
-      });
-      if (rc.data) setRecentComplaints(rc.data);
-      if (ri.data) setRecentIncidents(ri.data);
-      if (ue.data) setUpcomingEvents(ue.data);
+      const dashboard = await fetchDashboardFromBackend('admin');
+      setStats(dashboard.stats);
+      setRecentComplaints(dashboard.recentComplaints ?? []);
+      setRecentIncidents(dashboard.recentIncidents ?? []);
+      setUpcomingEvents(dashboard.upcomingEvents ?? []);
     };
     fetchAll();
   }, []);
