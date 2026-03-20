@@ -1,49 +1,22 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, Users, GraduationCap, FileText,
-  ClipboardList, ShieldCheck, Calendar, BarChart3,
-  ChevronLeft, ChevronRight, LogOut, Moon, Sun, Menu, X,
-  BookOpen, AlertTriangle, DoorOpen, UserCheck, FileBarChart,
-  MessageCircle, User
+  ChevronLeft, ChevronRight, LogOut, Moon, Sun, X,
+  PanelLeftClose
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
 import bestlinkLogo from '@/assets/bestlink-logo.png';
-
-interface NavItem {
-  label: string;
-  icon: React.ReactNode;
-  path: string;
-  roles: string[];
-}
-
-const navItems: NavItem[] = [
-  { label: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/dashboard', roles: ['admin', 'prefect', 'faculty', 'student'] },
-  { label: 'User Management', icon: <Users size={20} />, path: '/users', roles: ['admin'] },
-  { label: 'Training', icon: <BookOpen size={20} />, path: '/training', roles: ['admin', 'prefect', 'faculty', 'student'] },
-  { label: 'Conversations', icon: <MessageCircle size={20} />, path: '/conversations', roles: ['admin', 'prefect', 'faculty', 'student'] },
-  { label: 'Complaints', icon: <FileText size={20} />, path: '/complaints', roles: ['admin', 'prefect', 'faculty', 'student'] },
-  { label: 'Incidents', icon: <AlertTriangle size={20} />, path: '/incidents', roles: ['admin', 'prefect', 'faculty'] },
-  { label: 'Recruitment', icon: <UserCheck size={20} />, path: '/recruitment', roles: ['admin', 'faculty', 'student'] },
-  { label: 'Duty Assignments', icon: <ClipboardList size={20} />, path: '/duties', roles: ['admin', 'prefect', 'faculty'] },
-  { label: 'Gate Assistance', icon: <DoorOpen size={20} />, path: '/gate-logs', roles: ['admin', 'prefect', 'faculty'] },
-  { label: 'Events', icon: <Calendar size={20} />, path: '/events', roles: ['admin', 'prefect', 'faculty'] },
-  { label: 'Attendance', icon: <ShieldCheck size={20} />, path: '/attendance', roles: ['admin', 'prefect', 'faculty'] },
-  { label: 'Evaluations', icon: <GraduationCap size={20} />, path: '/evaluations', roles: ['admin', 'faculty'] },
-  { label: 'Reports', icon: <BarChart3 size={20} />, path: '/reports', roles: ['admin', 'prefect', 'faculty'] },
-  { label: 'Weekly Reports', icon: <FileBarChart size={20} />, path: '/weekly-reports', roles: ['admin', 'prefect', 'faculty'] },
-  { label: 'My Profile', icon: <User size={20} />, path: '/profile', roles: ['admin', 'prefect', 'faculty', 'student'] },
-];
+import { navigationItems, navigationSections } from './navigation';
 
 export default function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { signOut, profile, primaryRole, hasRole } = useAuth();
+  const { signOut, hasRole } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
 
-  const filteredNav = navItems.filter(item =>
+  const filteredNav = navigationItems.filter(item =>
     item.roles.some(r => hasRole(r as any))
   );
 
@@ -61,24 +34,44 @@ export default function AppSidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto p-2 space-y-0.5">
-        {filteredNav.map((item) => {
-          const active = location.pathname === item.path;
+      <nav className="flex-1 overflow-y-auto px-2 py-3">
+        {navigationSections.map((section) => {
+          const sectionItems = filteredNav.filter((item) => item.section === section);
+          if (sectionItems.length === 0) return null;
+
           return (
-            <Link
-              key={item.path}
-              to={item.path}
-              onClick={() => setMobileOpen(false)}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200 ${
-                active
-                  ? 'bg-sidebar-accent text-sidebar-primary font-medium'
-                  : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
-              }`}
-              title={collapsed ? item.label : undefined}
-            >
-              <span className="flex-shrink-0">{item.icon}</span>
-              {!collapsed && <span className="animate-fade-in truncate">{item.label}</span>}
-            </Link>
+            <div key={section} className="mb-4 last:mb-0">
+              {!collapsed && (
+                <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-sidebar-foreground/40">
+                  {section}
+                </p>
+              )}
+              <div className="space-y-0.5">
+                {sectionItems.map((item) => {
+                  const active = location.pathname === item.path;
+                  const Icon = item.icon;
+
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      onClick={() => setMobileOpen(false)}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 ${
+                        active
+                          ? 'bg-sidebar-accent text-sidebar-primary font-medium shadow-sm'
+                          : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+                      }`}
+                      title={collapsed ? item.label : undefined}
+                    >
+                      <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-white/5">
+                        <Icon size={18} />
+                      </span>
+                      {!collapsed && <span className="animate-fade-in truncate">{item.label}</span>}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
           );
         })}
       </nav>
@@ -87,25 +80,16 @@ export default function AppSidebar() {
       <div className="p-3 border-t border-sidebar-border space-y-2">
         <button
           onClick={toggleTheme}
-          className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 transition-colors"
+          className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 transition-colors"
           title={collapsed ? (theme === 'dark' ? 'Light Mode' : 'Dark Mode') : undefined}
         >
           {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
           {!collapsed && <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>}
         </button>
 
-        {!collapsed && profile && (
-          <div className="px-3 py-2 animate-fade-in">
-            <p className="text-sm font-medium text-sidebar-foreground truncate">
-              {profile.first_name} {profile.last_name}
-            </p>
-            <p className="text-xs text-sidebar-foreground/50 capitalize">{primaryRole}</p>
-          </div>
-        )}
-
         <button
           onClick={signOut}
-          className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-accent hover:bg-accent/10 transition-colors"
+          className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-sm text-accent hover:bg-accent/10 transition-colors"
           title={collapsed ? 'Sign Out' : undefined}
         >
           <LogOut size={20} />
@@ -123,7 +107,7 @@ export default function AppSidebar() {
         className="fixed top-4 left-4 z-50 p-2 rounded-lg bg-card shadow-lg border border-border md:hidden"
         aria-label="Open menu"
       >
-        <Menu size={20} />
+        <PanelLeftClose size={20} />
       </button>
 
       {/* Mobile overlay */}

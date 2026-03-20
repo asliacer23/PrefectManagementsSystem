@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import PageHeader from '@/components/layout/PageHeader';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
-import { Settings, Eye } from 'lucide-react';
+import { Database, Settings, Eye } from 'lucide-react';
+import { toast } from 'sonner';
 import ComplaintsCRUD from '../components/ComplaintsCRUD';
 import ComplaintsView from '../components/ComplaintsView';
 import * as complaintsService from '../services/complaintsService';
+import { fetchComplaintsFromBackend, seedComplaintsFromBackend } from '@/features/shared/services/backendAppDataService';
 
 interface Complaint {
   id: string;
@@ -23,20 +26,15 @@ export default function ComplaintsPage() {
   const isAdmin = hasRole('admin');
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
   const [activeTab, setActiveTab] = useState(isAdmin ? 'manage' : 'view');
 
   const fetchComplaints = async () => {
     setLoading(true);
     try {
-      let data;
-      if (isAdmin) {
-        data = await complaintsService.fetchComplaints();
-      } else if (user) {
-        data = await complaintsService.fetchUserComplaints(user.id);
-      } else {
-        data = [];
-      }
-      setComplaints(data as Complaint[]);
+      const data = await fetchComplaintsFromBackend();
+      const allComplaints = (data.complaints ?? []) as Complaint[];
+      setComplaints(isAdmin ? allComplaints : allComplaints.filter((complaint) => complaint.submitted_by === user?.id));
     } catch (error) {
       console.error('Error fetching complaints:', error);
     } finally {
@@ -48,11 +46,32 @@ export default function ComplaintsPage() {
     fetchComplaints();
   }, [user]);
 
+  const handleSeedData = async () => {
+    setSeeding(true);
+    try {
+      await seedComplaintsFromBackend();
+      await fetchComplaints();
+      toast.success('Complaint seed data was added and fetched from the database.');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to seed complaints');
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   return (
     <AppLayout>
       <PageHeader
         title="Student Complaints"
         description="Submit and track complaints"
+        actions={
+          isAdmin ? (
+            <Button type="button" variant="outline" onClick={handleSeedData} disabled={seeding} className="gap-2">
+              <Database size={16} />
+              {seeding ? 'Seeding...' : 'Load Seed Data'}
+            </Button>
+          ) : null
+        }
       />
 
       {/* Admin Tabs */}

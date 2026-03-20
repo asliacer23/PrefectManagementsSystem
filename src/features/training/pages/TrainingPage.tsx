@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import PageHeader from '@/components/layout/PageHeader';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
-import { Settings, Eye } from 'lucide-react';
+import { Database, Eye, Settings } from 'lucide-react';
+import { toast } from 'sonner';
 import TrainingCategoriesCRUD from '../components/TrainingCategoriesCRUD';
 import TrainingMaterialsCRUD from '../components/TrainingMaterialsCRUD';
 import TrainingMaterialsView from '../components/TrainingMaterialsView';
 import * as trainingCategoriesService from '../services/trainingCategoriesService';
 import * as trainingMaterialsService from '../services/trainingMaterialsService';
+import { fetchTrainingFromBackend, seedTrainingFromBackend } from '@/features/shared/services/backendAppDataService';
 
 interface Category {
   id: string;
@@ -31,17 +34,15 @@ export default function TrainingPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
   const [activeTab, setActiveTab] = useState(isAdmin ? 'manage' : 'view');
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [cats, mats] = await Promise.all([
-        trainingCategoriesService.fetchCategories(),
-        trainingMaterialsService.fetchMaterials(),
-      ]);
-      setCategories(cats);
-      setMaterials(mats);
+      const data = await fetchTrainingFromBackend();
+      setCategories(data.categories ?? []);
+      setMaterials(data.materials ?? []);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -53,11 +54,38 @@ export default function TrainingPage() {
     fetchData();
   }, []);
 
+  const handleSeedTrainingData = async () => {
+    setSeeding(true);
+    try {
+      await seedTrainingFromBackend();
+      await fetchData();
+      toast.success('Training seed data was added and fetched from the database.');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to seed training data');
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   return (
     <AppLayout>
       <PageHeader
         title="Training & Orientation"
         description="Rules, responsibilities, and training materials"
+        actions={
+          isAdmin ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleSeedTrainingData}
+              disabled={seeding}
+              className="gap-2"
+            >
+              <Database size={16} />
+              {seeding ? 'Seeding...' : 'Load Seed Data'}
+            </Button>
+          ) : null
+        }
       />
 
       {/* Admin Tabs */}

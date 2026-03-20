@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import PageHeader from '@/components/layout/PageHeader';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
-import { Settings, Eye } from 'lucide-react';
+import { Database, Settings, Eye } from 'lucide-react';
+import { toast } from 'sonner';
 import AttendanceCRUD from '../components/AttendanceCRUD';
 import AttendanceView from '../components/AttendanceView';
 import * as attendanceService from '../services/attendanceService';
+import { fetchAttendanceFromBackend, seedAttendanceFromBackend } from '@/features/shared/services/backendAppDataService';
 
 interface Attendance {
   id: string;
@@ -32,17 +35,16 @@ export default function AttendancePage() {
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
   const [activeTab, setActiveTab] = useState(isAdmin ? 'manage' : 'view');
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [attendanceData, prefectsData] = await Promise.all([
-        attendanceService.fetchAttendance(),
-        attendanceService.fetchPrefects(),
-      ]);
-      setAttendance(attendanceData as Attendance[]);
-      setProfiles(prefectsData as Profile[]);
+      const data = await fetchAttendanceFromBackend();
+      const allAttendance = (data.attendance ?? []) as Attendance[];
+      setAttendance(isAdmin ? allAttendance : allAttendance.filter((record) => record.prefect_id === user?.id));
+      setProfiles((data.profiles ?? []) as Profile[]);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -54,11 +56,32 @@ export default function AttendancePage() {
     fetchData();
   }, []);
 
+  const handleSeedData = async () => {
+    setSeeding(true);
+    try {
+      await seedAttendanceFromBackend();
+      await fetchData();
+      toast.success('Attendance seed data was added and fetched from the database.');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to seed attendance data');
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   return (
     <AppLayout>
       <PageHeader
         title="Attendance"
         description="Track and manage attendance records"
+        actions={
+          isAdmin ? (
+            <Button type="button" variant="outline" onClick={handleSeedData} disabled={seeding} className="gap-2">
+              <Database size={16} />
+              {seeding ? 'Seeding...' : 'Load Seed Data'}
+            </Button>
+          ) : null
+        }
       />
 
       {/* Admin Tabs */}

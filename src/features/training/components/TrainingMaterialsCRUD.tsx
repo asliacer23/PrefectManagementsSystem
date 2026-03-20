@@ -23,7 +23,12 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
-import * as trainingMaterialsService from '../services/trainingMaterialsService';
+import {
+  createTrainingMaterialFromBackend,
+  deleteTrainingMaterialFromBackend,
+  fetchTrainingFromBackend,
+  updateTrainingMaterialFromBackend,
+} from '@/features/shared/services/backendAppDataService';
 
 interface Category {
   id: string;
@@ -92,7 +97,8 @@ export default function TrainingMaterialsCRUD({ categories, onMaterialsChange }:
     setLoading(true);
     try {
       if (editingId) {
-        await trainingMaterialsService.updateMaterial(editingId, {
+        await updateTrainingMaterialFromBackend({
+          id: editingId,
           title: formData.title,
           content: formData.content,
           category_id: formData.category_id,
@@ -100,7 +106,7 @@ export default function TrainingMaterialsCRUD({ categories, onMaterialsChange }:
         });
         toast.success('Material updated successfully');
       } else {
-        await trainingMaterialsService.createMaterial({
+        await createTrainingMaterialFromBackend({
           title: formData.title,
           content: formData.content,
           category_id: formData.category_id,
@@ -124,7 +130,7 @@ export default function TrainingMaterialsCRUD({ categories, onMaterialsChange }:
 
     setLoading(true);
     try {
-      await trainingMaterialsService.deleteMaterial(materialToDelete.id);
+      await deleteTrainingMaterialFromBackend(materialToDelete.id);
       toast.success('Material deleted successfully');
       setDeleteDialogOpen(false);
       setMaterialToDelete(null);
@@ -138,8 +144,8 @@ export default function TrainingMaterialsCRUD({ categories, onMaterialsChange }:
 
   const fetchMaterials = async () => {
     try {
-      const data = await trainingMaterialsService.fetchMaterials();
-      onMaterialsChange(data);
+      const data = await fetchTrainingFromBackend();
+      onMaterialsChange(data.materials ?? []);
     } catch (error: any) {
       toast.error(error.message || 'Failed to fetch materials');
     }

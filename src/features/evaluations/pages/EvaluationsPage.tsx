@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import PageHeader from '@/components/layout/PageHeader';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
-import { Settings, Eye } from 'lucide-react';
+import { Database, Settings, Eye } from 'lucide-react';
+import { toast } from 'sonner';
 import EvaluationsCRUD from '../components/EvaluationsCRUD';
 import EvaluationsView from '../components/EvaluationsView';
 import * as evaluationsService from '../services/evaluationsService';
+import { fetchEvaluationsFromBackend, seedEvaluationsFromBackend } from '@/features/shared/services/backendAppDataService';
 
 interface Evaluation {
   id: string;
@@ -41,21 +44,18 @@ export default function EvaluationsPage() {
   const [adminProfiles, setAdminProfiles] = useState<Profile[]>([]);
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
   const [activeTab, setActiveTab] = useState(isAdmin ? 'manage' : 'view');
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [evaluationsData, prefectsData, adminsData, academicYearsData] = await Promise.all([
-        evaluationsService.fetchEvaluations(),
-        evaluationsService.fetchPrefects(),
-        evaluationsService.fetchAdmins(),
-        evaluationsService.fetchAcademicYears(),
-      ]);
-      setEvaluations(evaluationsData as Evaluation[]);
-      setPrefectProfiles(prefectsData as Profile[]);
-      setAdminProfiles(adminsData as Profile[]);
-      setAcademicYears(academicYearsData as AcademicYear[]);
+      const data = await fetchEvaluationsFromBackend();
+      const allEvaluations = (data.evaluations ?? []) as Evaluation[];
+      setEvaluations(isAdmin ? allEvaluations : allEvaluations.filter((evaluation) => evaluation.prefect_id === user?.id));
+      setPrefectProfiles((data.prefectProfiles ?? []) as Profile[]);
+      setAdminProfiles((data.adminProfiles ?? []) as Profile[]);
+      setAcademicYears((data.academicYears ?? []) as AcademicYear[]);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -67,11 +67,32 @@ export default function EvaluationsPage() {
     fetchData();
   }, []);
 
+  const handleSeedData = async () => {
+    setSeeding(true);
+    try {
+      await seedEvaluationsFromBackend();
+      await fetchData();
+      toast.success('Evaluation seed data was added and fetched from the database.');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to seed evaluation data');
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   return (
     <AppLayout>
       <PageHeader
         title="Performance Evaluations"
         description="Manage prefect performance evaluations"
+        actions={
+          isAdmin ? (
+            <Button type="button" variant="outline" onClick={handleSeedData} disabled={seeding} className="gap-2">
+              <Database size={16} />
+              {seeding ? 'Seeding...' : 'Load Seed Data'}
+            </Button>
+          ) : null
+        }
       />
 
       {/* Admin Tabs */}

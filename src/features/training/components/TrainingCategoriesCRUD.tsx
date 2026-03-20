@@ -1,8 +1,14 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -15,7 +21,12 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, FolderOpen } from 'lucide-react';
-import * as trainingCategoriesService from '../services/trainingCategoriesService';
+import {
+  createTrainingCategoryFromBackend,
+  deleteTrainingCategoryFromBackend,
+  fetchTrainingFromBackend,
+  updateTrainingCategoryFromBackend,
+} from '@/features/shared/services/backendAppDataService';
 
 interface Category {
   id: string;
@@ -27,6 +38,19 @@ interface TrainingCategoriesCRUDProps {
   categories: Category[];
   onCategoriesChange: (categories: Category[]) => void;
 }
+
+const CATEGORY_OPTIONS = [
+  'Bullying',
+  'Harassment',
+  'Physical Altercation',
+  'Discipline',
+  'Conflict Resolution',
+  'Student Safety',
+  'Incident Reporting',
+  'Leadership',
+  'Campus Conduct',
+  'Others',
+];
 
 export default function TrainingCategoriesCRUD({ categories, onCategoriesChange }: TrainingCategoriesCRUDProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -60,10 +84,10 @@ export default function TrainingCategoriesCRUD({ categories, onCategoriesChange 
     setLoading(true);
     try {
       if (editingId) {
-        await trainingCategoriesService.updateCategory(editingId, formData);
+        await updateTrainingCategoryFromBackend({ id: editingId, ...formData });
         toast.success('Category updated successfully');
       } else {
-        await trainingCategoriesService.createCategory(formData);
+        await createTrainingCategoryFromBackend(formData);
         toast.success('Category created successfully');
       }
 
@@ -82,7 +106,7 @@ export default function TrainingCategoriesCRUD({ categories, onCategoriesChange 
 
     setLoading(true);
     try {
-      await trainingCategoriesService.deleteCategory(categoryToDelete.id);
+      await deleteTrainingCategoryFromBackend(categoryToDelete.id);
       toast.success('Category deleted successfully');
       setDeleteDialogOpen(false);
       setCategoryToDelete(null);
@@ -96,8 +120,8 @@ export default function TrainingCategoriesCRUD({ categories, onCategoriesChange 
 
   const fetchCategories = async () => {
     try {
-      const data = await trainingCategoriesService.fetchCategories();
-      onCategoriesChange(data);
+      const data = await fetchTrainingFromBackend();
+      onCategoriesChange(data.categories ?? []);
     } catch (error: any) {
       toast.error(error.message || 'Failed to fetch categories');
     }
@@ -120,12 +144,21 @@ export default function TrainingCategoriesCRUD({ categories, onCategoriesChange 
             <div className="space-y-4">
               <div>
                 <Label htmlFor="cat-name">Name</Label>
-                <Input
-                  id="cat-name"
-                  placeholder="Category name"
+                <Select
                   value={formData.name}
-                  onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))}
-                />
+                  onValueChange={(value) => setFormData((p) => ({ ...p, name: value }))}
+                >
+                  <SelectTrigger id="cat-name">
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORY_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label htmlFor="cat-desc">Description</Label>

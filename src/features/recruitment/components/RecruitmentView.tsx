@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
 import { Plus, UserCheck, Eye } from 'lucide-react';
 import * as recruitmentService from '../services/recruitmentService';
@@ -259,55 +260,60 @@ export default function RecruitmentView({
           <p className="text-muted-foreground">No applications yet</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {applications.map((application) => {
-            const profile = getProfile(application.applicant_id);
-            return (
-              <div
-                key={application.id}
-                className="rounded-lg border border-border bg-card p-4 hover:shadow-sm transition-shadow"
-              >
-                <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-medium">
-                      {profile
-                        ? `${profile.first_name} ${profile.last_name}`
-                        : 'Unknown Applicant'}
-                    </h3>
-                    {profile?.student_id && (
-                      <p className="text-xs text-muted-foreground">ID: {profile.student_id}</p>
-                    )}
-                    <p className="text-sm text-muted-foreground line-clamp-2 mt-2">
+        <div className="rounded-xl border border-border bg-card">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Applicant</TableHead>
+                <TableHead>Student ID</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>GPA</TableHead>
+                <TableHead>Statement</TableHead>
+                <TableHead>Submitted</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {applications.map((application) => {
+                const profile = getProfile(application.applicant_id);
+                return (
+                  <TableRow key={application.id}>
+                    <TableCell className="font-medium">
+                      {profile ? `${profile.first_name} ${profile.last_name}` : 'Unknown Applicant'}
+                    </TableCell>
+                    <TableCell>{profile?.student_id || 'N/A'}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={`text-xs capitalize ${statusColors[application.status] || ''}`}
+                      >
+                        {application.status.replace('_', ' ')}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{application.gpa || 'Not provided'}</TableCell>
+                    <TableCell className="max-w-sm truncate text-muted-foreground">
                       {application.statement}
-                    </p>
-                    <div className="flex gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
-                      {application.gpa && <span>GPA: {application.gpa}</span>}
-                      <span>{new Date(application.created_at).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col items-end gap-2">
-                    <Badge
-                      variant="outline"
-                      className={`text-xs capitalize ${statusColors[application.status] || ''}`}
-                    >
-                      {application.status.replace('_', ' ')}
-                    </Badge>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setSelectedApplication(application);
-                        setViewDialogOpen(true);
-                      }}
-                    >
-                      <Eye size={14} />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                    </TableCell>
+                    <TableCell>{new Date(application.created_at).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      <div className="flex justify-end">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedApplication(application);
+                            setViewDialogOpen(true);
+                          }}
+                        >
+                          <Eye size={14} className="mr-1" /> View
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         </div>
       )}
 

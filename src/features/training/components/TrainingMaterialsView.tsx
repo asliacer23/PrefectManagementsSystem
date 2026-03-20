@@ -22,9 +22,21 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { toast } from 'sonner';
 import { BookOpen, Pencil, Trash2, Eye } from 'lucide-react';
-import * as trainingMaterialsService from '../services/trainingMaterialsService';
+import {
+  deleteTrainingMaterialFromBackend,
+  fetchTrainingFromBackend,
+  updateTrainingMaterialFromBackend,
+} from '@/features/shared/services/backendAppDataService';
 
 interface Category {
   id: string;
@@ -106,7 +118,8 @@ export default function TrainingMaterialsView({
 
     setLoading(true);
     try {
-      await trainingMaterialsService.updateMaterial(selectedMaterial.id, {
+      await updateTrainingMaterialFromBackend({
+        id: selectedMaterial.id,
         title: editFormData.title,
         content: editFormData.content,
         category_id: editFormData.category_id,
@@ -132,7 +145,7 @@ export default function TrainingMaterialsView({
 
     setLoading(true);
     try {
-      await trainingMaterialsService.deleteMaterial(selectedMaterial.id);
+      await deleteTrainingMaterialFromBackend(selectedMaterial.id);
       toast.success('Material deleted successfully');
       setDeleteDialogOpen(false);
       setSelectedMaterial(null);
@@ -146,8 +159,8 @@ export default function TrainingMaterialsView({
 
   const fetchMaterials = async () => {
     try {
-      const data = await trainingMaterialsService.fetchMaterials();
-      onMaterialsChange(data);
+      const data = await fetchTrainingFromBackend();
+      onMaterialsChange(data.materials ?? []);
     } catch (error: any) {
       toast.error(error.message || 'Failed to fetch materials');
     }
@@ -187,7 +200,7 @@ export default function TrainingMaterialsView({
         </div>
       </div>
 
-      {/* Materials Grid */}
+      {/* Materials Table */}
       {filteredMaterials.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <BookOpen size={48} className="text-muted-foreground/40 mb-4" />
@@ -197,59 +210,62 @@ export default function TrainingMaterialsView({
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredMaterials.map((material) => (
-            <div
-              key={material.id}
-              className="rounded-xl border border-border bg-card p-5 hover:shadow-md transition-shadow flex flex-col"
-            >
-              <div className="flex items-start justify-between mb-3 gap-2">
-                <Badge variant="outline" className="text-xs flex-shrink-0">
-                  {getCategoryName(material.category_id)}
-                </Badge>
-                {!material.is_published && (
-                  <Badge variant="secondary" className="text-xs flex-shrink-0">
-                    Draft
-                  </Badge>
-                )}
-              </div>
-
-              <h3 className="font-display font-semibold mb-2 line-clamp-2">{material.title}</h3>
-              <p className="text-sm text-muted-foreground line-clamp-3 mb-4 flex-grow">
-                {material.content || 'No content available'}
-              </p>
-
-              <div className="flex gap-2 mt-auto">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => handleViewMaterial(material)}
-                >
-                  <Eye size={14} className="mr-1" /> View
-                </Button>
-                {isAdmin && (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleEditOpen(material)}
-                    >
-                      <Pencil size={14} />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => handleDeleteOpen(material)}
-                    >
-                      <Trash2 size={14} />
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
-          ))}
+        <div className="rounded-xl border border-border bg-card">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Title</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Preview</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredMaterials.map((material) => (
+                <TableRow key={material.id}>
+                  <TableCell className="font-medium">{material.title}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{getCategoryName(material.category_id)}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={material.is_published ? 'default' : 'secondary'}>
+                      {material.is_published ? 'Published' : 'Draft'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="max-w-sm truncate text-muted-foreground">
+                    {material.content || 'No content available'}
+                  </TableCell>
+                  <TableCell>
+                    {new Date(material.created_at).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex justify-end gap-2">
+                      <Button size="sm" variant="outline" onClick={() => handleViewMaterial(material)}>
+                        <Eye size={14} className="mr-1" /> View
+                      </Button>
+                      {isAdmin && (
+                        <>
+                          <Button size="sm" variant="outline" onClick={() => handleEditOpen(material)}>
+                            <Pencil size={14} />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => handleDeleteOpen(material)}
+                          >
+                            <Trash2 size={14} />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       )}
 

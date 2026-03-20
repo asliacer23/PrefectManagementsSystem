@@ -1,11 +1,16 @@
-import { useEffect, useState } from "react";
-import { ArrowUpRight, Link2, Send, ShieldAlert } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { ArrowUpRight, Link2, RefreshCw, Send, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { getPrefectFlowProfile, getPrefectRecentClearanceRecords } from "@/features/integrations/services/registrarIntegrationService";
+import AppLayout from "@/components/layout/AppLayout";
+import PageHeader from "@/components/layout/PageHeader";
+
+type FlowProfile = Awaited<ReturnType<typeof getPrefectFlowProfile>>;
+type ClearanceRecord = Awaited<ReturnType<typeof getPrefectRecentClearanceRecords>>[number];
 
 const STORAGE_KEYS = {
   baseUrl: "prefect.registrar.baseUrl",
@@ -22,8 +27,10 @@ export default function RegistrarIntegrationPage() {
   const [notes, setNotes] = useState("");
   const [responseText, setResponseText] = useState("Registrar responses will appear here.");
   const [busyAction, setBusyAction] = useState("");
-  const [flowSummary, setFlowSummary] = useState("Loading prefect schema flow profile...");
-  const [clearanceSummary, setClearanceSummary] = useState("Loading prefect clearance view...");
+  const [flowProfile, setFlowProfile] = useState<FlowProfile | null>(null);
+  const [clearanceRecords, setClearanceRecords] = useState<ClearanceRecord[]>([]);
+  const [schemaLoading, setSchemaLoading] = useState(true);
+  const [schemaError, setSchemaError] = useState("");
 
   useEffect(() => {
     const storedBaseUrl = window.localStorage.getItem(STORAGE_KEYS.baseUrl);
@@ -40,36 +47,29 @@ export default function RegistrarIntegrationPage() {
     window.localStorage.setItem(STORAGE_KEYS.apiKey, apiKey);
   }, [apiKey]);
 
-  useEffect(() => {
-    let mounted = true;
-
-    Promise.all([getPrefectFlowProfile(), getPrefectRecentClearanceRecords()])
-      .then(([profile, records]) => {
-        if (!mounted) return;
-        if (profile) {
-          setFlowSummary(
-            `${profile.department_name} is stage ${profile.clearance_stage_order} in the flow. Receives ${JSON.stringify(profile.receives)} and sends ${JSON.stringify(profile.sends)}.`
-          );
-        } else {
-          setFlowSummary("No Prefect flow profile row was found in the Postgres schema.");
-        }
-        setClearanceSummary(
-          records.length
-            ? `Recent Prefect clearance records loaded from schema view: ${records.map((record) => `${record.clearance_reference} (${record.status})`).join(", ")}`
-            : "No Prefect clearance records were returned from the schema view yet."
-        );
-      })
-      .catch((error) => {
-        if (!mounted) return;
-        const message = error instanceof Error ? error.message : "Schema lookup failed.";
-        setFlowSummary(`Unable to read prefect.department_flow_profiles: ${message}`);
-        setClearanceSummary(`Unable to read prefect.department_clearance_records: ${message}`);
-      });
-
-    return () => {
-      mounted = false;
-    };
+  const loadSchemaData = useCallback(async () => {
+    setSchemaLoading(true);
+    setSchemaError("");
+    try {
+      const [profile, records] = await Promise.all([
+        getPrefectFlowProfile(),
+        getPrefectRecentClearanceRecords(),
+      ]);
+      setFlowProfile(profile);
+      setClearanceRecords(records);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Schema lookup failed.";
+      setSchemaError(message);
+      setFlowProfile(null);
+      setClearanceRecords([]);
+    } finally {
+      setSchemaLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadSchemaData();
+  }, [loadSchemaData]);
 
   function authHeaders(extra?: HeadersInit) {
     return {
@@ -92,13 +92,17 @@ export default function RegistrarIntegrationPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Registrar Integration</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Prefect can push discipline records into registrar and pull student personal information for clearance workflows.
-        </p>
-      </div>
+    <AppLayout>
+      <PageHeader
+        title="Registrar Integration"
+        description="Use the Prefect schema views as your live backend source and connect registrar endpoints from one place."
+        actions={
+          <Button variant="outline" onClick={() => void loadSchemaData()} disabled={schemaLoading}>
+            <RefreshCw className={`h-4 w-4 ${schemaLoading ? "animate-spin" : ""}`} />
+            Refresh DB
+          </Button>
+        }
+      />
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
@@ -107,7 +111,42 @@ export default function RegistrarIntegrationPage() {
             <CardDescription>Read from `prefect.department_flow_profiles` in Postgres.</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">{flowSummary}</p>
+            {schemaLoading ? (
+              <p className="text-sm text-muted-foreground">Loading prefect.department_flow_profiles...</p>
+            ) : schemaError ? (
+              <p className="text-sm text-destructive">Unable to read schema data: {schemaError}</p>
+            ) : flowProfile ? (
+              <div className="space-y-3 text-sm">
+                <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                  <span className="text-muted-foreground">Department</span>
+                  <span className="font-medium">{flowProfile.department_name}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                  <span className="text-muted-foreground">Flow Order</span>
+                  <span className="font-medium">{flowProfile.flow_order}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                  <span className="text-muted-foreground">Stage Order</span>
+                  <span className="font-medium">{flowProfile.clearance_stage_order}</span>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-muted-foreground">Receives</p>
+                  <p className="mt-1 font-mono text-xs">{JSON.stringify(flowProfile.receives)}</p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-muted-foreground">Sends</p>
+                  <p className="mt-1 font-mono text-xs">{JSON.stringify(flowProfile.sends)}</p>
+                </div>
+                {flowProfile.notes && (
+                  <div className="rounded-lg border p-3">
+                    <p className="text-muted-foreground">Notes</p>
+                    <p className="mt-1">{flowProfile.notes}</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No Prefect flow profile row was found in the database.</p>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -116,7 +155,34 @@ export default function RegistrarIntegrationPage() {
             <CardDescription>Read from `prefect.department_clearance_records` in Postgres.</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">{clearanceSummary}</p>
+            {schemaLoading ? (
+              <p className="text-sm text-muted-foreground">Loading prefect.department_clearance_records...</p>
+            ) : schemaError ? (
+              <p className="text-sm text-destructive">Unable to read schema data: {schemaError}</p>
+            ) : clearanceRecords.length ? (
+              <div className="space-y-3">
+                {clearanceRecords.map((record) => (
+                  <div key={record.id} className="rounded-lg border p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium">{record.patient_name}</p>
+                        <p className="text-xs text-muted-foreground">{record.clearance_reference}</p>
+                      </div>
+                      <Badge variant="outline" className="capitalize">{record.status}</Badge>
+                    </div>
+                    <div className="mt-3 grid gap-2 text-xs text-muted-foreground md:grid-cols-2">
+                      <p>Department: {record.department_name}</p>
+                      <p>Stage: {record.stage_order}</p>
+                      <p>Patient Type: {record.patient_type}</p>
+                      <p>Updated: {new Date(record.updated_at).toLocaleString()}</p>
+                    </div>
+                    {record.remarks && <p className="mt-2 text-sm">{record.remarks}</p>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No Prefect clearance records were returned from the database view yet.</p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -265,6 +331,6 @@ export default function RegistrarIntegrationPage() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </AppLayout>
   );
 }

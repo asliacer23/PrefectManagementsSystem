@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import PageHeader from '@/components/layout/PageHeader';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
-import { Settings, Eye } from 'lucide-react';
+import { Database, Settings, Eye } from 'lucide-react';
+import { toast } from 'sonner';
 import EventsCRUD from '../components/EventsCRUD';
 import EventsView from '../components/EventsView';
 import * as eventsService from '../services/eventsService';
+import { fetchEventsFromBackend, seedEventsFromBackend } from '@/features/shared/services/backendAppDataService';
 
 interface Event {
   id: string;
@@ -33,17 +36,15 @@ export default function EventsPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
   const [activeTab, setActiveTab] = useState(isAdmin ? 'manage' : 'view');
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [eventsData, profilesData] = await Promise.all([
-        eventsService.fetchEvents(),
-        eventsService.fetchProfiles(),
-      ]);
-      setEvents(eventsData as Event[]);
-      setProfiles(profilesData as Profile[]);
+      const data = await fetchEventsFromBackend();
+      setEvents((data.events ?? []) as Event[]);
+      setProfiles((data.profiles ?? []) as Profile[]);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -55,11 +56,32 @@ export default function EventsPage() {
     fetchData();
   }, []);
 
+  const handleSeedData = async () => {
+    setSeeding(true);
+    try {
+      await seedEventsFromBackend();
+      await fetchData();
+      toast.success('Event seed data was added and fetched from the database.');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to seed events');
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   return (
     <AppLayout>
       <PageHeader
         title="Events & Assembly"
         description="Event schedules and support assignments"
+        actions={
+          isAdmin ? (
+            <Button type="button" variant="outline" onClick={handleSeedData} disabled={seeding} className="gap-2">
+              <Database size={16} />
+              {seeding ? 'Seeding...' : 'Load Seed Data'}
+            </Button>
+          ) : null
+        }
       />
 
       {/* Admin Tabs */}

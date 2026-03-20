@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { Copy, Eye, FileText, Filter, MoreHorizontal, Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,8 +13,16 @@ import {
 } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
-import { Plus, FileText, Eye } from 'lucide-react';
 import * as complaintsService from '../services/complaintsService';
 
 const statusColors: Record<string, string> = {
@@ -59,7 +68,6 @@ export default function ComplaintsView({
       toast.error('Subject is required');
       return;
     }
-
     if (!form.description.trim()) {
       toast.error('Description is required');
       return;
@@ -84,29 +92,25 @@ export default function ComplaintsView({
 
   const fetchComplaints = async () => {
     try {
-      let data: Complaint[];
-      if (isAdmin) {
-        data = (await complaintsService.fetchComplaints()) as Complaint[];
-      } else {
-        data = (await complaintsService.fetchUserComplaints(userId)) as Complaint[];
-      }
-      onComplaintsChange(data);
+      const data = isAdmin
+        ? await complaintsService.fetchComplaints()
+        : await complaintsService.fetchUserComplaints(userId);
+      onComplaintsChange(data as Complaint[]);
     } catch (error: any) {
       toast.error(error.message || 'Failed to fetch complaints');
     }
   };
 
-  const filteredComplaints = complaints.filter((complaint) => {
+  const filteredComplaints = useMemo(() => complaints.filter((complaint) => {
     const matchesSearch =
       complaint.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
       complaint.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === 'all' || complaint.status === filterStatus;
     return matchesSearch && matchesStatus;
-  });
+  }), [complaints, filterStatus, searchTerm]);
 
   return (
     <div className="space-y-6">
-      {/* Header with Submit Button */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h2 className="text-lg font-semibold">
           {isAdmin ? 'All Complaints' : 'My Complaints'}
@@ -124,181 +128,108 @@ export default function ComplaintsView({
             <div className="space-y-4">
               <div>
                 <Label htmlFor="subject">Subject</Label>
-                <Input
-                  id="subject"
-                  placeholder="Complaint subject"
-                  value={form.subject}
-                  onChange={(e) => setForm((p) => ({ ...p, subject: e.target.value }))}
-                />
+                <Input id="subject" value={form.subject} onChange={(e) => setForm((p) => ({ ...p, subject: e.target.value }))} />
               </div>
               <div>
                 <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  placeholder="Describe your complaint in detail"
-                  rows={4}
-                  value={form.description}
-                  onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-                />
+                <Textarea id="description" rows={4} value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} />
               </div>
               <div className="flex gap-2 justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setDialogOpen(false);
-                    setForm({ subject: '', description: '' });
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button onClick={handleSubmit} disabled={loading}>
-                  {loading ? 'Submitting...' : 'Submit'}
-                </Button>
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+                <Button onClick={handleSubmit} disabled={loading}>{loading ? 'Submitting...' : 'Submit'}</Button>
               </div>
             </div>
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="search">Search Complaints</Label>
-          <Input
-            id="search"
-            placeholder="Search by subject or description..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="mt-1"
-          />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+          <Input placeholder="Search by subject or description..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
         </div>
-        <div>
-          <Label htmlFor="status-filter">Filter by Status</Label>
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger id="status-filter" className="mt-1">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="in_progress">In Progress</SelectItem>
-              <SelectItem value="resolved">Resolved</SelectItem>
-              <SelectItem value="dismissed">Dismissed</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="rounded-full">
+              <Filter className="h-4 w-4" />
+              Filter
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56 rounded-2xl">
+            <DropdownMenuLabel>Status</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => setFilterStatus('all')}>All Statuses</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setFilterStatus('pending')}>Pending</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setFilterStatus('in_progress')}>In Progress</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setFilterStatus('resolved')}>Resolved</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setFilterStatus('dismissed')}>Dismissed</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => { setFilterStatus('all'); setSearchTerm(''); }}>Reset Filters</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
-      {/* Complaints List */}
       {filteredComplaints.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <FileText size={48} className="text-muted-foreground/40 mb-4" />
           <p className="text-muted-foreground mb-2">
             {searchTerm || filterStatus !== 'all' ? 'No complaints match your filters' : 'No complaints yet'}
           </p>
-          {!isAdmin && (
-            <p className="text-xs text-muted-foreground">
-              Submit your first complaint to get started
-            </p>
-          )}
         </div>
       ) : (
-        <div className="space-y-3">
-          {filteredComplaints.map((complaint) => (
-            <div
-              key={complaint.id}
-              className="rounded-lg border border-border bg-card p-4 hover:shadow-sm transition-shadow"
-            >
-              <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-medium truncate">{complaint.subject}</h3>
-                  <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-                    {complaint.description}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {new Date(complaint.created_at).toLocaleDateString()}
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <Badge
-                    variant="outline"
-                    className={`text-xs capitalize flex-shrink-0 ${
-                      statusColors[complaint.status] || ''
-                    }`}
-                  >
-                    {complaint.status.replace('_', ' ')}
-                  </Badge>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setSelectedComplaint(complaint);
-                      setViewDialogOpen(true);
-                    }}
-                  >
-                    <Eye size={14} />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ))}
+        <div className="rounded-xl border border-border overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/40 hover:bg-muted/40">
+                <TableHead>Subject</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredComplaints.map((complaint) => (
+                <TableRow key={complaint.id}>
+                  <TableCell className="font-medium">{complaint.subject}</TableCell>
+                  <TableCell className="max-w-[320px]"><p className="truncate text-muted-foreground">{complaint.description}</p></TableCell>
+                  <TableCell><Badge variant="outline" className={`text-xs capitalize ${statusColors[complaint.status] || ''}`}>{complaint.status.replace('_', ' ')}</Badge></TableCell>
+                  <TableCell>{new Date(complaint.created_at).toLocaleDateString()}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <Button size="sm" variant="outline" onClick={() => { setSelectedComplaint(complaint); setViewDialogOpen(true); }}>
+                        <Eye size={14} />
+                        View
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="icon" className="h-9 w-9"><MoreHorizontal className="h-4 w-4" /></Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="rounded-2xl">
+                          <DropdownMenuItem onClick={() => { setSelectedComplaint(complaint); setViewDialogOpen(true); }}>View Details</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => navigator.clipboard.writeText(complaint.subject)}><Copy className="mr-2 h-4 w-4" />Copy Subject</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       )}
 
-      {/* View Dialog */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
         <DialogContent className="w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{selectedComplaint?.subject}</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>{selectedComplaint?.subject}</DialogTitle></DialogHeader>
           {selectedComplaint && (
             <div className="space-y-4">
               <div>
                 <Label className="text-xs text-muted-foreground">Status</Label>
-                <Badge
-                  variant="outline"
-                  className={`mt-2 ${statusColors[selectedComplaint.status] || ''} capitalize`}
-                >
-                  {selectedComplaint.status.replace('_', ' ')}
-                </Badge>
+                <Badge variant="outline" className={`mt-2 ${statusColors[selectedComplaint.status] || ''} capitalize`}>{selectedComplaint.status.replace('_', ' ')}</Badge>
               </div>
-
               <div>
                 <Label className="text-xs text-muted-foreground">Description</Label>
-                <div className="text-sm mt-2 p-4 rounded-lg border border-border bg-muted/30 whitespace-pre-wrap">
-                  {selectedComplaint.description}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-xs text-muted-foreground">Submitted</Label>
-                  <p className="text-sm mt-1">
-                    {new Date(selectedComplaint.created_at).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                    })}
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground">Last Updated</Label>
-                  <p className="text-sm mt-1">
-                    {new Date(selectedComplaint.updated_at).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                    })}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex justify-end pt-4 border-t border-border">
-                <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
-                  Close
-                </Button>
+                <div className="text-sm mt-2 p-4 rounded-lg border border-border bg-muted/30 whitespace-pre-wrap">{selectedComplaint.description}</div>
               </div>
             </div>
           )}

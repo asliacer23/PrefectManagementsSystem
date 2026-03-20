@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import PageHeader from '@/components/layout/PageHeader';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
-import { Settings, Eye } from 'lucide-react';
+import { Database, Settings, Eye } from 'lucide-react';
+import { toast } from 'sonner';
 import { ExternalIntegrationPanel } from '@/features/integrations/components/ExternalIntegrationPanel';
 import IncidentsCRUD from '../components/IncidentsCRUD';
 import IncidentsView from '../components/IncidentsView';
 import * as incidentsService from '../services/incidentsService';
+import { fetchIncidentsFromBackend, seedIncidentsFromBackend } from '@/features/shared/services/backendAppDataService';
 
 interface Incident {
   id: string;
@@ -27,20 +30,15 @@ export default function IncidentsPage() {
   const registrarBaseUrl = 'http://localhost:3000/api/integrations';
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
   const [activeTab, setActiveTab] = useState(isAdmin ? 'manage' : 'view');
 
   const fetchIncidents = async () => {
     setLoading(true);
     try {
-      let data;
-      if (isAdmin) {
-        data = await incidentsService.fetchIncidents();
-      } else if (user) {
-        data = await incidentsService.fetchUserIncidents(user.id);
-      } else {
-        data = [];
-      }
-      setIncidents(data as Incident[]);
+      const data = await fetchIncidentsFromBackend();
+      const allIncidents = (data.incidents ?? []) as Incident[];
+      setIncidents(isAdmin ? allIncidents : allIncidents.filter((incident) => incident.reported_by === user?.id));
     } catch (error) {
       console.error('Error fetching incidents:', error);
     } finally {
@@ -52,11 +50,32 @@ export default function IncidentsPage() {
     fetchIncidents();
   }, [user]);
 
+  const handleSeedData = async () => {
+    setSeeding(true);
+    try {
+      await seedIncidentsFromBackend();
+      await fetchIncidents();
+      toast.success('Incident seed data was added and fetched from the database.');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to seed incidents');
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   return (
     <AppLayout>
       <PageHeader
         title="Incident Reports"
         description="Report and track incidents"
+        actions={
+          isAdmin ? (
+            <Button type="button" variant="outline" onClick={handleSeedData} disabled={seeding} className="gap-2">
+              <Database size={16} />
+              {seeding ? 'Seeding...' : 'Load Seed Data'}
+            </Button>
+          ) : null
+        }
       />
 
       <div className="mb-6">

@@ -1,26 +1,12 @@
-import { supabase } from "@/integrations/supabase/client";
+import {
+  getPrefectFlowProfileFromDatabase,
+  getPrefectRecentClearanceRecordsFromDatabase,
+} from "./databaseIntegrationService";
 
 export async function getPrefectFlowProfile() {
-  const { data, error } = await supabase
-    .schema("prefect")
-    .from("department_flow_profiles")
-    .select("*")
-    .eq("department_key", "prefect")
-    .maybeSingle();
-
-  if (error) throw error;
-  return data;
+  return getPrefectFlowProfileFromDatabase();
 }
 
 export async function getPrefectRecentClearanceRecords() {
-  const { data, error } = await supabase
-    .schema("prefect")
-    .from("department_clearance_records")
-    .select("*")
-    .eq("department_key", "prefect")
-    .order("created_at", { ascending: false })
-    .limit(5);
-
-  if (error) throw error;
-  return data ?? [];
+  return getPrefectRecentClearanceRecordsFromDatabase(5);
 }

@@ -10,8 +10,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { toast } from 'sonner';
-import { Plus, Eye, LogIn } from 'lucide-react';
+import { Eye, LogIn, Plus } from 'lucide-react';
 import * as gateLogsService from '../services/gateLogsService';
 
 interface GateAssistanceLog {
@@ -55,10 +63,7 @@ export default function GateLogsView({
     thisMonth: userLogs.filter((l) => {
       const logDate = new Date(l.log_date);
       const today = new Date();
-      return (
-        logDate.getMonth() === today.getMonth() &&
-        logDate.getFullYear() === today.getFullYear()
-      );
+      return logDate.getMonth() === today.getMonth() && logDate.getFullYear() === today.getFullYear();
     }).length,
   };
 
@@ -100,12 +105,9 @@ export default function GateLogsView({
 
   const fetchLogs = async () => {
     try {
-      let data;
-      if (isAdmin) {
-        data = await gateLogsService.fetchGateLogs();
-      } else {
-        data = await gateLogsService.fetchUserGateLogs(userId);
-      }
+      const data = isAdmin
+        ? await gateLogsService.fetchGateLogs()
+        : await gateLogsService.fetchUserGateLogs(userId);
       onLogsChange(data as GateAssistanceLog[]);
     } catch (error: any) {
       toast.error(error.message || 'Failed to fetch gate logs');
@@ -115,23 +117,19 @@ export default function GateLogsView({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold mb-4">
-          {isAdmin ? 'All Gate Logs' : 'My Gate Assistance Logs'}
-        </h2>
+        <h2 className="mb-4 text-lg font-semibold">{isAdmin ? 'All Gate Logs' : 'My Gate Assistance Logs'}</h2>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="rounded-lg border border-border bg-card p-4">
-            <p className="text-xs text-muted-foreground mb-1">Total Logs</p>
+            <p className="mb-1 text-xs text-muted-foreground">Total Logs</p>
             <p className="text-2xl font-semibold">{stats.total}</p>
           </div>
           <div className="rounded-lg border border-border bg-card p-4">
-            <p className="text-xs text-muted-foreground mb-1">This Month</p>
+            <p className="mb-1 text-xs text-muted-foreground">This Month</p>
             <p className="text-2xl font-semibold">{stats.thisMonth}</p>
           </div>
         </div>
 
-        {/* Create Button */}
         {!isAdmin && (
           <div className="mb-6">
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -140,7 +138,7 @@ export default function GateLogsView({
                   <Plus size={16} className="mr-1" /> Log Gate Assistance
                 </Button>
               </DialogTrigger>
-              <DialogContent className="w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+              <DialogContent className="mx-4 w-full max-w-md max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Create Gate Assistance Log</DialogTitle>
                 </DialogHeader>
@@ -154,7 +152,6 @@ export default function GateLogsView({
                       onChange={(e) => setForm((p) => ({ ...p, log_date: e.target.value }))}
                     />
                   </div>
-
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="time_in">Time In *</Label>
@@ -175,7 +172,6 @@ export default function GateLogsView({
                       />
                     </div>
                   </div>
-
                   <div>
                     <Label htmlFor="notes">Notes</Label>
                     <Textarea
@@ -186,19 +182,13 @@ export default function GateLogsView({
                       onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
                     />
                   </div>
-
-                  <div className="flex gap-2 justify-end">
+                  <div className="flex justify-end gap-2">
                     <Button
                       type="button"
                       variant="outline"
                       onClick={() => {
                         setDialogOpen(false);
-                        setForm({
-                          log_date: '',
-                          time_in: '',
-                          time_out: '',
-                          notes: '',
-                        });
+                        setForm({ log_date: '', time_in: '', time_out: '', notes: '' });
                       }}
                     >
                       Cancel
@@ -216,54 +206,60 @@ export default function GateLogsView({
 
       {userLogs.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <LogIn size={48} className="text-muted-foreground/40 mb-4" />
+          <LogIn size={48} className="mb-4 text-muted-foreground/40" />
           <p className="text-muted-foreground">No gate logs yet</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {userLogs.map((log) => (
-            <div
-              key={log.id}
-              className="rounded-lg border border-border bg-card p-4 hover:shadow-sm transition-shadow"
-            >
-              <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-medium">
-                    📅 {new Date(log.log_date).toLocaleDateString('en-US', {
+        <div className="rounded-xl border border-border bg-card">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Time In</TableHead>
+                <TableHead>Time Out</TableHead>
+                <TableHead>Notes</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {userLogs.map((log) => (
+                <TableRow key={log.id}>
+                  <TableCell className="font-medium">
+                    {new Date(log.log_date).toLocaleDateString('en-US', {
                       weekday: 'short',
                       year: 'numeric',
                       month: 'short',
                       day: 'numeric',
                     })}
-                  </h3>
-                  <div className="flex gap-3 mt-2 text-sm text-muted-foreground flex-wrap">
-                    <span>🕐 In: {log.time_in}</span>
-                    {log.time_out && <span>Out: {log.time_out}</span>}
-                  </div>
-                  {log.notes && (
-                    <p className="text-sm text-muted-foreground line-clamp-2 mt-2">{log.notes}</p>
-                  )}
-                </div>
-
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setSelectedLog(log);
-                    setViewDialogOpen(true);
-                  }}
-                >
-                  <Eye size={14} />
-                </Button>
-              </div>
-            </div>
-          ))}
+                  </TableCell>
+                  <TableCell>{log.time_in}</TableCell>
+                  <TableCell>{log.time_out || 'Not recorded'}</TableCell>
+                  <TableCell className="max-w-md truncate text-muted-foreground">
+                    {log.notes || 'No notes'}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex justify-end">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setSelectedLog(log);
+                          setViewDialogOpen(true);
+                        }}
+                      >
+                        <Eye size={14} className="mr-1" /> View
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       )}
 
-      {/* View Dialog */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+        <DialogContent className="mx-4 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Gate Log Details</DialogTitle>
           </DialogHeader>
@@ -272,7 +268,7 @@ export default function GateLogsView({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-xs text-muted-foreground">Log Date</Label>
-                  <p className="text-sm mt-1">
+                  <p className="mt-1 text-sm">
                     {new Date(selectedLog.log_date).toLocaleDateString('en-US', {
                       year: 'numeric',
                       month: 'long',
@@ -282,33 +278,28 @@ export default function GateLogsView({
                 </div>
                 <div>
                   <Label className="text-xs text-muted-foreground">Created</Label>
-                  <p className="text-sm mt-1">
-                    {new Date(selectedLog.created_at).toLocaleDateString()}
-                  </p>
+                  <p className="mt-1 text-sm">{new Date(selectedLog.created_at).toLocaleDateString()}</p>
                 </div>
               </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-xs text-muted-foreground">Time In</Label>
-                  <p className="text-sm mt-1">{selectedLog.time_in}</p>
+                  <p className="mt-1 text-sm">{selectedLog.time_in}</p>
                 </div>
                 <div>
                   <Label className="text-xs text-muted-foreground">Time Out</Label>
-                  <p className="text-sm mt-1">{selectedLog.time_out || 'Not recorded'}</p>
+                  <p className="mt-1 text-sm">{selectedLog.time_out || 'Not recorded'}</p>
                 </div>
               </div>
-
               {selectedLog.notes && (
                 <div>
                   <Label className="text-xs text-muted-foreground">Notes</Label>
-                  <div className="text-sm mt-2 p-4 rounded-lg border border-border bg-muted/30 whitespace-pre-wrap">
+                  <div className="mt-2 whitespace-pre-wrap rounded-lg border border-border bg-muted/30 p-4 text-sm">
                     {selectedLog.notes}
                   </div>
                 </div>
               )}
-
-              <div className="flex justify-end pt-4 border-t border-border">
+              <div className="flex justify-end border-t border-border pt-4">
                 <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
                   Close
                 </Button>
