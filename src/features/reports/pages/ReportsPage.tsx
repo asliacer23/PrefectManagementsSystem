@@ -2,10 +2,17 @@ import { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import PageHeader from '@/components/layout/PageHeader';
 import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ExternalIntegrationPanel } from '@/features/integrations/components/ExternalIntegrationPanel';
 import {
   dispatchPrefectDepartmentFlowFromDatabase,
+  getGuidanceDisciplineFeedFromDatabase,
+  getHrConductFeedFromDatabase,
+  getPrefectRecentIntegrationEventsFromDatabase,
   getPrefectSharedRecordsFromDatabase,
+  lookupRegistrarStudentsFromDatabase,
+  type GuidanceDisciplineFeedRecord,
+  type PrefectIntegrationEvent,
   type PrefectSharedRecord,
 } from '@/features/integrations/services/databaseIntegrationService';
 import { toast } from 'sonner';
@@ -18,6 +25,10 @@ import { SystemStats, fetchSystemStats, fetchCriticalIssues } from '../services/
 interface CriticalIssues {
   unresolvedIncidents: any[];
   pendingComplaints: any[];
+}
+
+function toComparableValue(value: string | null | undefined) {
+  return String(value ?? '').trim().toLowerCase();
 }
 
 export default function ReportsPage() {
@@ -49,19 +60,24 @@ export default function ReportsPage() {
     unresolvedIncidents: [],
     pendingComplaints: [],
   });
-  const [pmedReports, setPmedReports] = useState<PrefectSharedRecord[]>([]);
+  const [sharedRecords, setSharedRecords] = useState<PrefectSharedRecord[]>([]);
+  const [guidanceFeed, setGuidanceFeed] = useState<GuidanceDisciplineFeedRecord[]>([]);
+  const [recentEvents, setRecentEvents] = useState<PrefectIntegrationEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadPmedReports = async () => {
+  const loadSharedRecords = async () => {
     const records = await getPrefectSharedRecordsFromDatabase(12);
-    setPmedReports(
-      records.filter(
-        (record) =>
-          record.department_key === 'pmed' ||
-          record.target_department_key === 'pmed' ||
-          record.metadata?.target_department === 'pmed',
-      ),
-    );
+    setSharedRecords(records);
+  };
+
+  const loadGuidanceFeed = async () => {
+    const feed = await getGuidanceDisciplineFeedFromDatabase(100);
+    setGuidanceFeed(feed);
+  };
+
+  const loadRecentEvents = async () => {
+    const events = await getPrefectRecentIntegrationEventsFromDatabase(50);
+    setRecentEvents(events);
   };
 
   useEffect(() => {
@@ -73,7 +89,7 @@ export default function ReportsPage() {
         ]);
         setStats(statsData);
         setCriticalIssues(issuesData);
-        await loadPmedReports();
+        await Promise.all([loadSharedRecords(), loadGuidanceFeed(), loadRecentEvents()]);
       } catch (error: any) {
         toast.error(error.message || 'Failed to fetch analytics');
       } finally {
@@ -116,6 +132,87 @@ export default function ReportsPage() {
     late: 'bg-warning/15 text-warning border-warning/30',
   };
 
+  const findGuidanceFeedMatch = (record: PrefectSharedRecord) => {
+    const recordReference = toComparableValue(record.external_reference || record.patient_code || record.clearance_reference);
+    const recordStudentName = toComparableValue(record.patient_name);
+
+    return guidanceFeed.find((item) => {
+      const caseReference = toComparableValue(item.case_reference);
+      const studentName = toComparableValue(item.student_name);
+
+      const byReference =
+        recordReference !== '' &&
+        caseReference !== '' &&
+        (recordReference === caseReference || recordReference.includes(caseReference) || caseReference.includes(recordReference));
+
+      const byStudent = recordStudentName !== '' && studentName !== '' && recordStudentName === studentName;
+
+      return byReference || byStudent;
+    });
+  };
+
+  const findGuidanceEventStatus = (record: PrefectSharedRecord) => {
+    const recordReference = toComparableValue(
+      record.external_reference || record.patient_code || record.clearance_reference,
+    );
+    const recordCorrelation = toComparableValue(record.correlation_id);
+    const recordClearanceRef = toComparableValue(record.clearance_reference);
+
+    const matched = recentEvents.find((event) => {
+      if (
+        toComparableValue(event.source_department_key) !== 'prefect' ||
+        toComparableValue(event.target_department_key) !== 'guidance'
+      ) {
+        return false;
+      }
+
+      const eventSourceRef = toComparableValue(event.source_record_id);
+      const eventCorrelation = toComparableValue(event.correlation_id);
+
+      const byCorrelation =
+        recordCorrelation !== '' && eventCorrelation !== '' && recordCorrelation === eventCorrelation;
+
+      const bySourceReference =
+        recordReference !== '' &&
+        eventSourceRef !== '' &&
+        (recordReference === eventSourceRef ||
+          recordReference.includes(eventSourceRef) ||
+          eventSourceRef.includes(recordReference));
+
+      const byClearanceReference =
+        recordClearanceRef !== '' &&
+        eventSourceRef !== '' &&
+        (recordClearanceRef.includes(eventSourceRef) || eventSourceRef.includes(recordClearanceRef));
+
+      return byCorrelation || bySourceReference || byClearanceReference;
+    });
+
+    return matched?.status || '';
+  };
+
+  const getSentReportDisplayStatus = (record: PrefectSharedRecord) => {
+    const targetDepartment = toComparableValue(record.target_department_key || record.department_key);
+
+    if (targetDepartment !== 'guidance') {
+      return record.status || 'not yet';
+    }
+
+    const guidanceRecord = findGuidanceFeedMatch(record);
+    if (guidanceRecord) {
+      const actionTakenRaw = String(guidanceRecord.action_taken ?? '').trim();
+      if (actionTakenRaw) {
+        return actionTakenRaw;
+      }
+    }
+
+    const eventStatus = findGuidanceEventStatus(record);
+    if (eventStatus) {
+      return eventStatus;
+    }
+
+    return record.status || 'not yet';
+  };
+
   if (loading)
     return (
       <AppLayout>
@@ -139,8 +236,27 @@ export default function ReportsPage() {
           apiKey=""
           onActionComplete={async (action, payload) => {
             if ((payload as { ok?: boolean } | null)?.ok) {
-              await loadPmedReports();
+              await loadSharedRecords();
             }
+          }}
+          fetchHrEmployees={async () => {
+            const employees = await getHrConductFeedFromDatabase(100);
+            return employees
+              .filter((employee) =>
+                String(employee.department_name || '').toLowerCase().includes('prefect'),
+              )
+              .map((employee) => ({
+                employeeId: employee.employee_id,
+                employeeNumber: employee.employee_number,
+                employeeName: employee.employee_name,
+                departmentName: employee.department_name,
+                positionTitle: employee.position_title,
+              }));
+          }}
+          resolveStudentName={async (studentId) => {
+            const records = await lookupRegistrarStudentsFromDatabase(studentId, 1);
+            const exactMatch = records.find((item) => item.student_no === studentId);
+            return (exactMatch ?? records[0])?.student_name ?? null;
           }}
           actions={[
             {
@@ -150,13 +266,14 @@ export default function ReportsPage() {
               badge: 'Guidance',
               mode: 'post',
               endpointLabel: 'Prefect to Guidance reporting route',
-              run: async ({ studentNo, referenceNo, title, notes, status }) =>
+              run: async ({ studentNo, studentName, referenceNo, title, notes, status }) =>
                 dispatchPrefectDepartmentFlowFromDatabase({
                   targetDepartmentKey: 'guidance',
                   eventCode: 'discipline_reports',
                   sourceRecordId: referenceNo || studentNo || 'reports-summary',
                   payload: {
                     student_no: studentNo,
+                    student_name: studentName,
                     reference_no: referenceNo,
                     title: title || 'Prefect Discipline Report Summary',
                     notes,
@@ -181,12 +298,14 @@ export default function ReportsPage() {
               badge: 'PMED',
               mode: 'post',
               endpointLabel: 'Prefect to PMED reporting route',
-              run: async ({ referenceNo, title, notes, status }) =>
+              run: async ({ studentNo, studentName, referenceNo, title, notes, status }) =>
                 dispatchPrefectDepartmentFlowFromDatabase({
                   targetDepartmentKey: 'pmed',
                   eventCode: 'discipline_statistics',
                   sourceRecordId: referenceNo || 'discipline-statistics',
                   payload: {
+                    student_no: studentNo,
+                    student_name: studentName,
                     reference_no: referenceNo,
                     title: title || 'Prefect Discipline and Incident Report',
                     notes,
@@ -206,6 +325,36 @@ export default function ReportsPage() {
                   },
                 }),
             },
+            {
+              key: 'employee-request-hr',
+              title: 'Request Employee to HR',
+              description: 'Send an employee request to HR with concern details for review.',
+              badge: 'HR',
+              mode: 'post',
+              endpointLabel: 'Prefect to HR employee request route',
+              run: async ({ studentNo, studentName, referenceNo, title, notes, status, reasonCategory, selectedEmployee }) =>
+                dispatchPrefectDepartmentFlowFromDatabase({
+                  targetDepartmentKey: 'hr',
+                  eventCode: 'employee_request',
+                  sourceRecordId: selectedEmployee?.employeeId || referenceNo || studentNo || 'employee-request',
+                  payload: {
+                    employee_id: selectedEmployee?.employeeId || null,
+                    employee_number: selectedEmployee?.employeeNumber || studentNo || null,
+                    employee_name: selectedEmployee?.employeeName || studentName || null,
+                    department_name: selectedEmployee?.departmentName || null,
+                    position_title: selectedEmployee?.positionTitle || null,
+                    reference_no: referenceNo,
+                    title: title || 'Prefect Employee Request',
+                    concern: reasonCategory || 'Other concern',
+                    reason_category: reasonCategory || 'Other concern',
+                    reason: notes,
+                    notes,
+                    status,
+                    source_module: 'reports',
+                    request_type: 'employee_request',
+                  },
+                }),
+            },
           ]}
         />
       </div>
@@ -213,38 +362,102 @@ export default function ReportsPage() {
       <div className="mb-6 rounded-xl border border-border bg-card p-5">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-lg font-semibold">Recent PMED Reports</h2>
+            <h2 className="text-lg font-semibold">Successful Sent Reports</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Latest Prefect reports already sent to the connected PMED department through the shared PostgreSQL registry.
+              Prefect reports successfully sent to connected departments.
             </p>
           </div>
-          <Badge variant="outline">{pmedReports.length} sent</Badge>
+          <Badge variant="outline">
+            {
+              sharedRecords.filter(
+                (record) => record.source_department_key === 'prefect' && ['completed', 'acknowledged', 'received', 'sent'].includes((record.status || '').toLowerCase()),
+              ).length
+            } successful
+          </Badge>
         </div>
 
-        <div className="mt-4 space-y-3">
-          {pmedReports.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-              No PMED reports have been sent yet.
-            </div>
-          ) : (
-            pmedReports.slice(0, 5).map((record) => (
-              <div key={`${record.clearance_reference}-${record.id}`} className="rounded-lg border border-border p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="font-medium">{record.patient_name}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{record.clearance_reference}</p>
-                  </div>
-                  <Badge variant="outline">{record.status}</Badge>
-                </div>
-                <p className="mt-3 text-sm text-muted-foreground">{record.remarks || 'PMED report sent from Prefect.'}</p>
-                <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
-                  <span>Reference: {record.patient_code || 'Not set'}</span>
-                  <span>Department: {record.department_name}</span>
-                  <span>Updated: {new Date(record.updated_at).toLocaleString()}</span>
-                </div>
-              </div>
-            ))
-          )}
+        <div className="mt-4 overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Reference</TableHead>
+                <TableHead>Student</TableHead>
+                <TableHead>Target Department</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Updated</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sharedRecords
+                .filter((record) => record.source_department_key === 'prefect')
+                .slice(0, 8)
+                .map((record) => (
+                  <TableRow key={`${record.clearance_reference}-${record.id}`}>
+                    <TableCell className="font-medium">{record.clearance_reference}</TableCell>
+                    <TableCell>{record.patient_name || 'N/A'}</TableCell>
+                    <TableCell>{record.target_department_key || record.department_name || 'N/A'}</TableCell>
+                    <TableCell>{getSentReportDisplayStatus(record)}</TableCell>
+                    <TableCell>{new Date(record.updated_at).toLocaleString()}</TableCell>
+                  </TableRow>
+                ))}
+              {sharedRecords.filter((record) => record.source_department_key === 'prefect').length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                    No sent report records yet.
+                  </TableCell>
+                </TableRow>
+              ) : null}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
+      <div className="mb-6 rounded-xl border border-border bg-card p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold">Received Reports (Other Departments)</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Reports received by Prefect from Guidance, PMED, Clinic, and other connected departments.
+            </p>
+          </div>
+          <Badge variant="outline">
+            {sharedRecords.filter((record) => record.target_department_key === 'prefect').length} received
+          </Badge>
+        </div>
+
+        <div className="mt-4 overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Reference</TableHead>
+                <TableHead>Student</TableHead>
+                <TableHead>Source Department</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Updated</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sharedRecords
+                .filter((record) => record.target_department_key === 'prefect')
+                .slice(0, 8)
+                .map((record) => (
+                  <TableRow key={`${record.clearance_reference}-${record.id}`}>
+                    <TableCell className="font-medium">{record.clearance_reference}</TableCell>
+                    <TableCell>{record.patient_name || 'N/A'}</TableCell>
+                    <TableCell>{record.source_department_key || record.department_name || 'N/A'}</TableCell>
+                    <TableCell>{record.status}</TableCell>
+                    <TableCell>{new Date(record.updated_at).toLocaleString()}</TableCell>
+                  </TableRow>
+                ))}
+              {sharedRecords.filter((record) => record.target_department_key === 'prefect').length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                    No received report records yet.
+                  </TableCell>
+                </TableRow>
+              ) : null}
+            </TableBody>
+          </Table>
         </div>
       </div>
 

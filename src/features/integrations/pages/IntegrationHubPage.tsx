@@ -298,21 +298,61 @@ export default function IntegrationHubPage() {
   async function handleReceiveGuidanceRecord(record: GuidanceDisciplineFeedRecord) {
     setBusyAction(`receive-guidance-${record.id}`);
     try {
-      const result = await receiveGuidanceDisciplineReportFromDatabase({
+      const receiveResult = await receiveGuidanceDisciplineReportFromDatabase({
         id: record.id,
         caseReference: record.case_reference ?? undefined,
         sourceRecordId: String(record.id),
       });
 
-      setTrackedEventId(result.event_id ?? "");
-      setTrackedCorrelationId(result.correlation_id ?? "");
-      setResponseText(JSON.stringify(result, null, 2));
+      if (!receiveResult.ok) {
+        setTrackedEventId(receiveResult.event_id ?? "");
+        setTrackedCorrelationId(receiveResult.correlation_id ?? "");
+        setResponseText(JSON.stringify(receiveResult, null, 2));
+        toast.error(receiveResult.message || "Guidance discipline record could not be received.");
+        return;
+      }
+
+      // After Prefect receives the report, immediately forward it to PMED using existing flow dispatch.
+      const forwardPayload = {
+        student_id: record.student_id,
+        student_name: record.student_name,
+        concern: record.concern,
+        action_taken: record.action_taken,
+        status: record.status,
+        complaints_behavior_records: record.concern,
+        case_reference: record.case_reference,
+        category: record.category,
+        priority_level: record.priority_level,
+        source_department: "prefect",
+        source_module: "prefect.integration_hub",
+      };
+
+      const forwardResult = await dispatchPrefectDepartmentFlowFromDatabase({
+        targetDepartmentKey: "pmed",
+        eventCode: "discipline_reports",
+        sourceRecordId: String(record.case_reference ?? record.id),
+        requestedBy: user?.id,
+        payload: forwardPayload,
+      });
+
+      setTrackedEventId(forwardResult.event_id ?? receiveResult.event_id ?? "");
+      setTrackedCorrelationId(forwardResult.correlation_id ?? receiveResult.correlation_id ?? "");
+      setResponseText(
+        JSON.stringify(
+          {
+            receive: receiveResult,
+            forward_to_pmed: forwardResult,
+          },
+          null,
+          2,
+        ),
+      );
       await loadManifest(true);
 
-      if (result.ok) {
-        toast.success("Guidance discipline record received into Prefect.");
+      if (forwardResult.ok) {
+        toast.success("Guidance report received in Prefect and forwarded to PMED.");
       } else {
-        toast.error(result.message || "Guidance discipline record could not be received.");
+        toast.error(forwardResult.message || "Report received in Prefect, but forwarding to PMED failed.");
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Guidance receive failed.";

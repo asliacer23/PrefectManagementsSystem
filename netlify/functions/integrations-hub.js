@@ -1387,12 +1387,54 @@ async function receiveGuidanceDisciplineReport(db, body) {
     sourceRecord: guidanceRecord,
   });
 
+  // Keep Prefect UI unchanged: after Prefect receives a Guidance report,
+  // automatically forward it to PMED using Prefect's existing outbound flow.
+  let forwardedToPmed = null;
+  try {
+    forwardedToPmed = await dispatchDepartmentFlow(db, {
+      targetDepartmentKey: "pmed",
+      eventCode: "discipline_report",
+      sourceRecordId: guidanceRecord.case_reference || `guidance-case-${guidanceRecord.id}`,
+      requestedBy: body?.requestedBy ?? null,
+      payload: {
+        student_id: guidanceRecord.student_id,
+        student_name: guidanceRecord.student_name,
+        concern: guidanceRecord.concern,
+        action_taken: guidanceRecord.action_taken,
+        status: guidanceRecord.status,
+        complaints_behavior_records: firstNonEmpty(
+          body?.complaintsBehaviorRecords,
+          body?.complaints_behavior_records,
+          guidanceRecord.concern,
+        ),
+        reference_no: guidanceRecord.case_reference,
+        case_reference: guidanceRecord.case_reference,
+        title: `Prefect Endorsement - ${guidanceRecord.student_name}`,
+        notes: guidanceRecord.action_taken,
+        case_summary: guidanceRecord.concern,
+        source_module: "prefect.receive_guidance_report",
+        source_department: "prefect",
+        target_department: "pmed",
+      },
+    });
+  } catch (error) {
+    forwardedToPmed = {
+      ok: false,
+      error: error instanceof Error ? error.message : "Automatic PMED forwarding failed.",
+    };
+  }
+
   return {
     ...created.result,
     status: "acknowledged",
     source_record: guidanceRecord,
     materialized_record: serializeSharedRecord(materialized.record),
-    message: "Guidance discipline data was received into Prefect successfully.",
+    forwarded_to_pmed: forwardedToPmed?.ok === true,
+    pmed_dispatch_result: forwardedToPmed,
+    message:
+      forwardedToPmed?.ok === true
+        ? "Guidance discipline data was received into Prefect and automatically sent to PMED."
+        : "Guidance discipline data was received into Prefect. PMED forwarding needs review.",
   };
 }
 
@@ -1533,7 +1575,9 @@ async function dispatchDepartmentFlow(db, body) {
   }
 
   const materialized = await materializeEvent(db, event, {
-    status: "dispatched",
+    // For most targets we can consider the handoff complete after we materialize
+    // the shared registry record for the target system.
+    status: targetDepartmentKey === "pmed" ? "dispatched" : "completed",
     acknowledge: false,
   });
 
@@ -1566,7 +1610,7 @@ async function dispatchDepartmentFlow(db, body) {
 
   return {
     ...result,
-    status: targetDepartmentKey === "pmed" ? "completed" : "dispatched",
+    status: "completed",
     materialized_record: serializeSharedRecord(materialized.record),
     pmed_forwarded: targetDepartmentKey === "pmed",
     pmed_bridge_response: pmedForwardResult,
