@@ -61,7 +61,7 @@ export default function HrStaffRequestPage() {
   const [requestLoading, setRequestLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [roleType, setRoleType] = useState<PrefectRoleType>("discipline_officer");
+  const [roleType, setRoleType] = useState<HrStaffIntegrationRoleCode>("discipline_officer");
   const [count, setCount] = useState(1);
   const [notes, setNotes] = useState("");
   const [requestedBy, setRequestedBy] = useState("Prefect Admin");
@@ -178,14 +178,16 @@ export default function HrStaffRequestPage() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>Request Staff from HR</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <Label>Role type</Label>
+        <DialogContent className="max-w-[680px]">
+          <DialogHeader>
+            <DialogTitle>Request Additional Staff from HR</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 pt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="hr-req-role">Requested role</Label>
                 <Select value={roleType} onValueChange={v => setRoleType(v as HrStaffIntegrationRoleCode)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger id="hr-req-role" className="w-full"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {HR_STAFF_INTEGRATION_ROLES.map((r) => (
                       <SelectItem key={r.value} value={r.value}>{r.title}</SelectItem>
@@ -193,23 +195,25 @@ export default function HrStaffRequestPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1">
-                <Label>Requested count</Label>
-                <Input type="number" min={1} value={count} onChange={e => setCount(Math.max(1, parseInt(e.target.value) || 1))} />
+              <div className="space-y-2">
+                <Label htmlFor="hr-req-count">Requested count</Label>
+                <Input id="hr-req-count" type="number" min={1} value={count} onChange={e => setCount(Math.max(1, parseInt(e.target.value) || 1))} />
               </div>
             </div>
-            <div className="space-y-1">
-              <Label>Requested by</Label>
-              <Input value={requestedBy} onChange={e => setRequestedBy(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Notes</Label>
-              <Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="Optional notes for HR…" />
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
+              <div className="space-y-2 sm:col-span-4">
+                <Label htmlFor="hr-req-by">Requested by</Label>
+                <Input id="hr-req-by" value={requestedBy} onChange={e => setRequestedBy(e.target.value)} />
+              </div>
+              <div className="space-y-2 sm:col-span-8">
+                <Label htmlFor="hr-req-notes">Request notes</Label>
+                <Textarea id="hr-req-notes" value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="Request notes" className="min-h-[72px]" />
+              </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSubmit} disabled={submitting}>
+          <DialogFooter className="gap-0 sm:justify-end">
+            <Button type="button" variant="ghost" className="text-muted-foreground" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button type="button" variant="link" className="text-primary font-semibold px-3 no-underline hover:no-underline" onClick={handleSubmit} disabled={submitting}>
               {submitting ? "Sending…" : "Send Request"}
             </Button>
           </DialogFooter>
