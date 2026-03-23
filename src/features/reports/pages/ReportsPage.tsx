@@ -238,6 +238,30 @@ export default function ReportsPage() {
             if ((payload as { ok?: boolean } | null)?.ok) {
               await loadSharedRecords();
             }
+            // TEMP DEBUG: show PMED bridge forwarding details in UI toast.
+            if (action.key === 'discipline-statistics') {
+              const result = (payload ?? {}) as Record<string, unknown>;
+              const bridge = (result.pmed_bridge_response ?? {}) as Record<string, unknown>;
+              const bridgeData = (bridge.data ?? {}) as Record<string, unknown>;
+              const forwarded = String(result.pmed_forwarded ?? '').toLowerCase() === 'true';
+              const reportReference =
+                String(bridgeData.report_reference ?? bridgeData.external_reference ?? result.source_record_id ?? 'n/a');
+              const intakeMode = String(bridgeData.intake_mode ?? 'n/a');
+              const bridgeMessage = String(
+                (bridge as Record<string, unknown>).message ??
+                  (bridge as Record<string, unknown>).error ??
+                  result.message ??
+                  'No bridge message.',
+              );
+
+              toast.message(
+                `TEMP DEBUG PMED: forwarded=${forwarded ? 'yes' : 'no'} | ref=${reportReference} | intake=${intakeMode}`,
+                {
+                  description: bridgeMessage,
+                  duration: 10000,
+                },
+              );
+            }
           }}
           fetchHrEmployees={async () => {
             const employees = await getHrConductFeedFromDatabase(100);

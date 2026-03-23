@@ -13,6 +13,7 @@ import {
   Network,
   ShieldCheck,
   UserCheck,
+  UserPlus,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -33,6 +34,7 @@ export const navigationItems: NavigationItem[] = [
   { label: 'Complaints', icon: FileText, path: '/complaints', roles: ['admin', 'prefect', 'faculty', 'student'], section: 'Workspace', keywords: ['reports', 'cases'] },
   { label: 'Incidents', icon: AlertTriangle, path: '/incidents', roles: ['admin', 'prefect', 'faculty'], section: 'Workspace', keywords: ['discipline', 'alerts'] },
   { label: 'Recruitment', icon: UserCheck, path: '/recruitment', roles: ['admin', 'faculty', 'student'], section: 'Operations', keywords: ['applications', 'hiring'] },
+  { label: 'Request Staff from HR', icon: UserPlus, path: '/integrations/hr-staff-request', roles: ['admin', 'prefect', 'faculty'], section: 'Operations', keywords: ['hr', 'hiring', 'employee', 'manpower'] },
   { label: 'Duty Assignments', icon: ClipboardList, path: '/duties', roles: ['admin', 'prefect', 'faculty'], section: 'Operations', keywords: ['schedule', 'assignments'] },
   { label: 'Gate Assistance', icon: DoorOpen, path: '/gate-logs', roles: ['admin', 'prefect', 'faculty'], section: 'Operations', keywords: ['gate', 'logs'] },
   { label: 'Events', icon: Calendar, path: '/events', roles: ['admin', 'prefect', 'faculty'], section: 'Operations', keywords: ['calendar', 'activities'] },

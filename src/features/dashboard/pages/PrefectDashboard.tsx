@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import { ClipboardList, DoorOpen, ShieldCheck, Calendar, BarChart3, AlertTriangle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ClipboardList, DoorOpen, ShieldCheck, Calendar, BarChart3, AlertTriangle, UserPlus } from 'lucide-react';
 import AppLayout from '@/components/layout/AppLayout';
 import PageHeader from '@/components/layout/PageHeader';
 import StatsCard from '@/components/layout/StatsCard';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { fetchDashboardFromBackend } from '@/features/shared/services/backendAppDataService';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -34,6 +36,15 @@ export default function PrefectDashboard() {
         title={`Welcome, Prefect ${profile?.first_name || ''}!`}
         description="Your prefect dashboard — duties, logs, and reports"
       />
+
+      <div className="mb-6 flex flex-wrap gap-3">
+        <Button asChild className="gap-2">
+          <Link to="/integrations/hr-staff-request">
+            <UserPlus className="h-4 w-4" />
+            Request staff from HR
+          </Link>
+        </Button>
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         <StatsCard title="My Duties" value={stats.myDuties} icon={<ClipboardList size={22} />} />

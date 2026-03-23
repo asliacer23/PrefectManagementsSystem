@@ -1597,14 +1597,22 @@ async function dispatchDepartmentFlow(db, body) {
     } catch (error) {
       const message = error instanceof Error ? error.message : "PMED forwarding failed.";
       await updateEventStatus(db, event.id, {
-        status: "failed",
+        // Do not fail Prefect dispatch when bridge forwarding is unavailable.
+        // The shared record is already materialized and usable by PMED integrations.
+        status: "completed",
         responsePayload: {
           pmed_forwarded: false,
+          pmed_forward_failed: true,
+          pmed_forward_failed_at: new Date().toISOString(),
           pmed_bridge_url: PMED_REPORT_BRIDGE_URL,
+          pmed_bridge_error: message,
         },
-        error: message,
+        error: null,
       });
-      throw error;
+      pmedForwardResult = {
+        ok: false,
+        message,
+      };
     }
   }
 
@@ -1612,11 +1620,13 @@ async function dispatchDepartmentFlow(db, body) {
     ...result,
     status: "completed",
     materialized_record: serializeSharedRecord(materialized.record),
-    pmed_forwarded: targetDepartmentKey === "pmed",
+    pmed_forwarded: targetDepartmentKey === "pmed" ? pmedForwardResult?.ok === true : false,
     pmed_bridge_response: pmedForwardResult,
     message:
-      targetDepartmentKey === "pmed"
+      targetDepartmentKey === "pmed" && pmedForwardResult?.ok === true
         ? "Department flow dispatched, materialized, and forwarded into PMED."
+        : targetDepartmentKey === "pmed"
+          ? "Department flow dispatched and materialized. PMED bridge forwarding failed, but the report remains recorded."
         : "Department flow dispatched and materialized into the shared record registry.",
   };
 }

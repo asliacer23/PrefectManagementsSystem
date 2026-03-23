@@ -26,6 +26,7 @@ import WeeklyReportsPage from "@/features/reports/pages/WeeklyReportsPage";
 import { ProfilePage } from "@/features/profile";
 import IntegrationHubPage from "@/features/integrations/pages/IntegrationHubPage";
 import RegistrarIntegrationPage from "@/features/integrations/pages/RegistrarIntegrationPage";
+import HrStaffRequestPage from "@/features/integrations/pages/HrStaffRequestPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -77,6 +78,7 @@ const App = () => (
               <Route path="/weekly-reports" element={<ProtectedRoute><WeeklyReportsPage /></ProtectedRoute>} />
               <Route path="/integrations" element={<ProtectedRoute><IntegrationHubPage /></ProtectedRoute>} />
               <Route path="/integrations/registrar" element={<ProtectedRoute><RegistrarIntegrationPage /></ProtectedRoute>} />
+              <Route path="/integrations/hr-staff-request" element={<ProtectedRoute><HrStaffRequestPage /></ProtectedRoute>} />
               <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>

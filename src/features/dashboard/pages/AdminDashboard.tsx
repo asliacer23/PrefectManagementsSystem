@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Users, FileText, AlertTriangle, ShieldCheck, ClipboardList, Calendar, TrendingUp, BookOpen } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Users, FileText, AlertTriangle, ShieldCheck, ClipboardList, Calendar, UserPlus } from 'lucide-react';
 import AppLayout from '@/components/layout/AppLayout';
 import PageHeader from '@/components/layout/PageHeader';
 import StatsCard from '@/components/layout/StatsCard';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { fetchDashboardFromBackend } from '@/features/shared/services/backendAppDataService';
 
 interface DashboardStats {
@@ -47,6 +49,15 @@ export default function AdminDashboard() {
   return (
     <AppLayout>
       <PageHeader title="Admin Dashboard" description="Overview of the Prefect Management System" />
+
+      <div className="mb-6 flex flex-wrap gap-3">
+        <Button asChild className="gap-2">
+          <Link to="/integrations/hr-staff-request">
+            <UserPlus className="h-4 w-4" />
+            Request staff from HR
+          </Link>
+        </Button>
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         <StatsCard title="Total Users" value={stats.totalUsers} icon={<Users size={22} />} />
