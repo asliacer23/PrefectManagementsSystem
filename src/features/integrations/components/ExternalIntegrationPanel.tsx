@@ -150,25 +150,39 @@ function summarizePayload(action: IntegrationAction, payload: unknown): SummaryS
   }
 
   if (materializedRecord) {
+    const clinicDeliveryFailed =
+      normalized.clinic_forwarded === false &&
+      normalized.clinic_bridge_response != null;
+    const items: Array<{ label: string; value: string }> = [
+      { label: "Department", value: action.badge },
+      { label: "Flow Status", value: String(normalized.status ?? "sent") },
+      {
+        label: "Reference",
+        value: String(materializedRecord.clearance_reference ?? normalized.correlation_id ?? "Generated"),
+      },
+      {
+        label: "Record",
+        value: String(materializedRecord.patient_name ?? materializedRecord.department_name ?? action.title),
+      },
+    ];
+    if (normalized.clinic_forwarded === true) {
+      items.push({ label: "Clinic delivery", value: "Report stored in Clinic inbox" });
+    } else if (clinicDeliveryFailed) {
+      const bridgeMsg = (normalized.clinic_bridge_response as Record<string, unknown>)?.message;
+      items.push({ label: "Clinic delivery", value: `Failed — ${String(bridgeMsg ?? "see technical details")}` });
+    }
     return {
-      status: "success",
-      title: `Sent to ${action.badge}`,
+      status: clinicDeliveryFailed ? "error" : "success",
+      title: clinicDeliveryFailed
+        ? `Flow dispatched but Clinic delivery failed`
+        : `Sent to ${action.badge}`,
       message: String(
         normalized.message ??
-          `${action.title} was sent through the connected ${action.badge} department route.`,
+          (clinicDeliveryFailed
+            ? "The department flow was recorded but the HTTP POST to the Clinic inbox failed. Check that the clinic server is running and the integration token matches."
+            : `${action.title} was sent through the connected ${action.badge} department route.`),
       ),
-      items: [
-        { label: "Department", value: action.badge },
-        { label: "Flow Status", value: String(normalized.status ?? "sent") },
-        {
-          label: "Reference",
-          value: String(materializedRecord.clearance_reference ?? normalized.correlation_id ?? "Generated"),
-        },
-        {
-          label: "Record",
-          value: String(materializedRecord.patient_name ?? materializedRecord.department_name ?? action.title),
-        },
-      ],
+      items,
       records: [],
       technicalDetails,
     };
@@ -316,7 +330,11 @@ export function ExternalIntegrationPanel({
           ].slice(0, 10));
         }
         await onActionComplete?.(action, payload);
-        toast.success(nextSummary.title);
+        if (nextSummary.status === "error") {
+          toast.error(nextSummary.title);
+        } else {
+          toast.success(nextSummary.title);
+        }
         setActionModalOpen(false);
         return;
       }
@@ -358,7 +376,11 @@ export function ExternalIntegrationPanel({
           ].slice(0, 10));
         }
         await onActionComplete?.(action, payload);
-        toast.success(nextSummary.title);
+        if (nextSummary.status === "error") {
+          toast.error(nextSummary.title);
+        } else {
+          toast.success(nextSummary.title);
+        }
         setActionModalOpen(false);
       }
     } catch (error) {

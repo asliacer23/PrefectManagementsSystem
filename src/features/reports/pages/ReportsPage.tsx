@@ -2,7 +2,12 @@ import { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import PageHeader from '@/components/layout/PageHeader';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  ReportRecordDetailsModal,
+  findEventForSharedRecord,
+} from '@/features/reports/components/ReportRecordDetailsModal';
 import { ExternalIntegrationPanel } from '@/features/integrations/components/ExternalIntegrationPanel';
 import {
   dispatchPrefectDepartmentFlowFromDatabase,
@@ -18,7 +23,7 @@ import {
 import { toast } from 'sonner';
 import {
   BarChart3, FileText, AlertTriangle, ClipboardList, Calendar,
-  Users, TrendingUp, CheckCircle, Clock, User, Bell, LogIn, Award
+  Users, TrendingUp, CheckCircle, Clock, User, Bell, LogIn, Award, Eye
 } from 'lucide-react';
 import { SystemStats, fetchSystemStats, fetchCriticalIssues } from '../services/analyticsService';
 
@@ -64,6 +69,9 @@ export default function ReportsPage() {
   const [guidanceFeed, setGuidanceFeed] = useState<GuidanceDisciplineFeedRecord[]>([]);
   const [recentEvents, setRecentEvents] = useState<PrefectIntegrationEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reportDetailsOpen, setReportDetailsOpen] = useState(false);
+  const [reportDetailsRecord, setReportDetailsRecord] = useState<PrefectSharedRecord | null>(null);
+  const [reportDetailsVariant, setReportDetailsVariant] = useState<'sent' | 'received'>('sent');
 
   const loadSharedRecords = async () => {
     const records = await getPrefectSharedRecordsFromDatabase(12);
@@ -76,7 +84,7 @@ export default function ReportsPage() {
   };
 
   const loadRecentEvents = async () => {
-    const events = await getPrefectRecentIntegrationEventsFromDatabase(50);
+    const events = await getPrefectRecentIntegrationEventsFromDatabase(100);
     setRecentEvents(events);
   };
 
@@ -213,6 +221,21 @@ export default function ReportsPage() {
     return record.status || 'not yet';
   };
 
+  const openSentReportDetails = (record: PrefectSharedRecord) => {
+    setReportDetailsVariant('sent');
+    setReportDetailsRecord(record);
+    setReportDetailsOpen(true);
+  };
+
+  const openReceivedReportDetails = (record: PrefectSharedRecord) => {
+    setReportDetailsVariant('received');
+    setReportDetailsRecord(record);
+    setReportDetailsOpen(true);
+  };
+
+  const reportDetailsEvent =
+    reportDetailsRecord ? findEventForSharedRecord(reportDetailsRecord, recentEvents) : null;
+
   if (loading)
     return (
       <AppLayout>
@@ -231,7 +254,7 @@ export default function ReportsPage() {
       <div className="mb-6">
         <ExternalIntegrationPanel
           title="External Reporting Integrations"
-          description="Send complete Prefect reporting data directly to the connected Guidance and PMED departments."
+          description="Send complete Prefect reporting data to Guidance, PMED, or Clinic, or request support from HR."
           baseUrl=""
           apiKey=""
           onActionComplete={async (action, payload) => {
@@ -350,6 +373,44 @@ export default function ReportsPage() {
                 }),
             },
             {
+              key: 'reports-to-clinic',
+              title: 'Send Health Report to Clinic',
+              description:
+                'Send health-related incident summaries and discipline metrics to the Clinic for medical follow-up.',
+              badge: 'Clinic',
+              mode: 'post',
+              endpointLabel: 'Prefect to Clinic reporting route',
+              run: async ({ studentNo, studentName, referenceNo, title, notes, status }) =>
+                dispatchPrefectDepartmentFlowFromDatabase({
+                  targetDepartmentKey: 'clinic',
+                  eventCode: 'incident_reports',
+                  sourceRecordId: referenceNo || studentNo || 'reports-clinic-summary',
+                  payload: {
+                    student_no: studentNo,
+                    student_name: studentName,
+                    reference_no: referenceNo,
+                    title: title || 'Prefect Health & Incident Summary',
+                    notes,
+                    status,
+                    source_module: 'reports',
+                    report_type: 'prefect_reports_health_summary',
+                    report_name: title || 'Prefect Health & Incident Summary',
+                    owner_name: 'Prefect Management',
+                    generated_at: new Date().toISOString(),
+                    health_related: true,
+                    handoff_type: 'health_incident',
+                    routing: 'clinic_follow_up',
+                    total_users: stats.totalUsers,
+                    total_prefects: stats.totalPrefects,
+                    total_complaints: stats.totalComplaints,
+                    total_incidents: stats.totalIncidents,
+                    total_duties: stats.totalDuties,
+                    unresolved_incidents: criticalIssues.unresolvedIncidents.length,
+                    pending_complaints: criticalIssues.pendingComplaints.length,
+                  },
+                }),
+            },
+            {
               key: 'employee-request-hr',
               title: 'Request Employee to HR',
               description: 'Send an employee request to HR with concern details for review.',
@@ -409,6 +470,7 @@ export default function ReportsPage() {
                 <TableHead>Target Department</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Updated</TableHead>
+                <TableHead className="text-right w-[100px]">Details</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -417,16 +479,30 @@ export default function ReportsPage() {
                 .slice(0, 8)
                 .map((record) => (
                   <TableRow key={`${record.clearance_reference}-${record.id}`}>
-                    <TableCell className="font-medium">{record.clearance_reference}</TableCell>
+                    <TableCell className="font-medium max-w-[200px] truncate" title={record.clearance_reference}>
+                      {record.clearance_reference}
+                    </TableCell>
                     <TableCell>{record.patient_name || 'N/A'}</TableCell>
                     <TableCell>{record.target_department_key || record.department_name || 'N/A'}</TableCell>
                     <TableCell>{getSentReportDisplayStatus(record)}</TableCell>
                     <TableCell>{new Date(record.updated_at).toLocaleString()}</TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={() => openSentReportDetails(record)}
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        View
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               {sharedRecords.filter((record) => record.source_department_key === 'prefect').length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center text-muted-foreground">
                     No sent report records yet.
                   </TableCell>
                 </TableRow>
@@ -458,6 +534,7 @@ export default function ReportsPage() {
                 <TableHead>Source Department</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Updated</TableHead>
+                <TableHead className="text-right w-[100px]">Details</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -466,16 +543,30 @@ export default function ReportsPage() {
                 .slice(0, 8)
                 .map((record) => (
                   <TableRow key={`${record.clearance_reference}-${record.id}`}>
-                    <TableCell className="font-medium">{record.clearance_reference}</TableCell>
+                    <TableCell className="font-medium max-w-[200px] truncate" title={record.clearance_reference}>
+                      {record.clearance_reference}
+                    </TableCell>
                     <TableCell>{record.patient_name || 'N/A'}</TableCell>
                     <TableCell>{record.source_department_key || record.department_name || 'N/A'}</TableCell>
                     <TableCell>{record.status}</TableCell>
                     <TableCell>{new Date(record.updated_at).toLocaleString()}</TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={() => openReceivedReportDetails(record)}
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        View
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               {sharedRecords.filter((record) => record.target_department_key === 'prefect').length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center text-muted-foreground">
                     No received report records yet.
                   </TableCell>
                 </TableRow>
@@ -833,6 +924,14 @@ export default function ReportsPage() {
           </div>
         </div>
       </div>
+
+      <ReportRecordDetailsModal
+        open={reportDetailsOpen}
+        onOpenChange={setReportDetailsOpen}
+        record={reportDetailsRecord}
+        matchedEvent={reportDetailsEvent}
+        variant={reportDetailsVariant}
+      />
     </AppLayout>
   );
 }

@@ -220,6 +220,10 @@ export type DispatchDepartmentFlowResult = {
   materialized_record?: PrefectSharedRecord | null;
   source_record?: Record<string, unknown> | null;
   message?: string;
+  pmed_forwarded?: boolean;
+  pmed_bridge_response?: unknown;
+  clinic_forwarded?: boolean;
+  clinic_bridge_response?: unknown;
 };
 
 export type DepartmentFlowStatusResult = {

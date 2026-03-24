@@ -6,6 +6,13 @@ const PMED_REPORT_BRIDGE_URL =
   process.env.PMED_REPORT_BRIDGE_URL ||
   "http://localhost/bpm%20commision/PMED/backend/integrations/departments/prefect.php";
 
+/** POST target for Clinic to store Prefect incident handoffs (must match clinicsystem route + DEPARTMENT_INTEGRATION_SHARED_TOKEN). */
+const CLINIC_PREFECT_BRIDGE_URL =
+  process.env.CLINIC_PREFECT_BRIDGE_URL || "http://localhost:5173/api/integrations/prefect/incident-reports";
+
+const CLINIC_DEPARTMENT_INTEGRATION_TOKEN =
+  process.env.CLINIC_DEPARTMENT_INTEGRATION_TOKEN || process.env.DEPARTMENT_INTEGRATION_SHARED_TOKEN || "";
+
 const pool = connectionString
   ? new Pool({
       connectionString,
@@ -221,26 +228,112 @@ async function forwardReportToPmed(event, record) {
   return parsed ?? { ok: true };
 }
 
+function mergeRecordIntoPayload(record, requestPayload) {
+  const base =
+    requestPayload && typeof requestPayload === "object" && !Array.isArray(requestPayload)
+      ? { ...requestPayload }
+      : {};
+  if (!record || typeof record !== "object") {
+    return base;
+  }
+  const meta = record.metadata;
+  const nestedPayload =
+    meta && typeof meta === "object" && meta.payload && typeof meta.payload === "object" && !Array.isArray(meta.payload)
+      ? meta.payload
+      : {};
+  return {
+    ...nestedPayload,
+    ...base,
+    clearance_reference: firstNonEmpty(base.clearance_reference, record.clearance_reference, base.reference_no),
+    patient_name: firstNonEmpty(base.patient_name, record.patient_name, base.student_name),
+    patient_code: firstNonEmpty(base.patient_code, record.patient_code, base.student_no),
+    student_name: firstNonEmpty(base.student_name, record.patient_name, base.patient_name),
+    student_no: firstNonEmpty(base.student_no, record.patient_code, base.patient_code),
+    record_remarks: firstNonEmpty(base.record_remarks, record.remarks),
+    department_flow: firstNonEmpty(base.department_flow, record.department_name),
+  };
+}
+
+function assertClinicBridgeTokenConfigured() {
+  const token = String(CLINIC_DEPARTMENT_INTEGRATION_TOKEN || "").trim();
+  if (!token) {
+    throw new Error(
+      "Prefect: set CLINIC_DEPARTMENT_INTEGRATION_TOKEN or DEPARTMENT_INTEGRATION_SHARED_TOKEN to the same value as clinic .env DEPARTMENT_INTEGRATION_SHARED_TOKEN. Without it the clinic POST returns 401 and module_activity_logs stays empty.",
+    );
+  }
+}
+
+async function forwardIncidentReportToClinic(event, record) {
+  assertClinicBridgeTokenConfigured();
+  const rawPayload = event?.request_payload ?? {};
+  const payload = mergeRecordIntoPayload(record, rawPayload);
+  const correlationId = firstNonEmpty(event?.correlation_id, payload?.correlation_id);
+  const body = {
+    action: "receive_prefect_incident",
+    correlation_id: correlationId,
+    event_id: event?.id,
+    event_code: event?.event_code,
+    source_department: "prefect",
+    clearance_reference: record?.clearance_reference,
+    patient_name: record?.patient_name,
+    patient_code: record?.patient_code,
+    patient_type: record?.patient_type,
+    payload,
+    record_metadata: record?.metadata,
+    materialized_at: new Date().toISOString(),
+  };
+
+  const headers = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    ...(CLINIC_DEPARTMENT_INTEGRATION_TOKEN ? { "X-Integration-Token": CLINIC_DEPARTMENT_INTEGRATION_TOKEN } : {}),
+  };
+
+  const response = await fetch(CLINIC_PREFECT_BRIDGE_URL, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+
+  const rawText = await response.text();
+  let parsed = null;
+  try {
+    parsed = rawText ? JSON.parse(rawText) : null;
+  } catch {
+    parsed = null;
+  }
+
+  if (!response.ok || parsed?.ok === false) {
+    throw new Error(parsed?.message || `Clinic bridge request failed with HTTP ${response.status}.`);
+  }
+
+  return parsed ?? { ok: true };
+}
+
 function buildClearanceReference(event, payload) {
-  const preferredReference =
-    firstNonEmpty(
-      payload?.reference_no,
-      payload?.referenceNo,
-      payload?.case_reference,
-      payload?.caseReference,
-      payload?.clearance_reference,
-      payload?.clearanceReference,
-      event.source_record_id,
-    ) || event.correlation_id;
+  const preferredReference = firstNonEmpty(
+    payload?.reference_no,
+    payload?.referenceNo,
+    payload?.case_reference,
+    payload?.caseReference,
+    payload?.clearance_reference,
+    payload?.clearanceReference,
+    event.source_record_id,
+  );
+
+  // One row per integration_flow_events row: include event id/correlation so repeated sends
+  // with the same reference_no / default sourceRecordId do not overwrite prior reports.
+  const uniqueEventKey = firstNonEmpty(event.id, event.correlation_id) || `ADHOC-${Date.now()}`;
 
   return [
     "FLOW",
     toSlug(event.source_department_key),
     toSlug(event.target_department_key),
     toSlug(event.event_code),
-    toSlug(preferredReference || event.id),
+    toSlug(preferredReference || "DISPATCH"),
+    toSlug(uniqueEventKey),
   ]
-    .filter(Boolean)
+    .filter((segment) => segment && String(segment).length > 0)
     .join("-");
 }
 
@@ -1616,17 +1709,56 @@ async function dispatchDepartmentFlow(db, body) {
     }
   }
 
+  let clinicForwardResult = null;
+  if (targetDepartmentKey === "clinic") {
+    try {
+      clinicForwardResult = await forwardIncidentReportToClinic(event, materialized.record);
+      await updateEventStatus(db, event.id, {
+        status: "completed",
+        responsePayload: {
+          clinic_forwarded: true,
+          clinic_forwarded_at: new Date().toISOString(),
+          clinic_bridge_url: CLINIC_PREFECT_BRIDGE_URL,
+          clinic_bridge_response: clinicForwardResult,
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Clinic forwarding failed.";
+      await updateEventStatus(db, event.id, {
+        status: "completed",
+        responsePayload: {
+          clinic_forwarded: false,
+          clinic_forward_failed: true,
+          clinic_forward_failed_at: new Date().toISOString(),
+          clinic_bridge_url: CLINIC_PREFECT_BRIDGE_URL,
+          clinic_bridge_error: message,
+        },
+        error: null,
+      });
+      clinicForwardResult = {
+        ok: false,
+        message,
+      };
+    }
+  }
+
   return {
     ...result,
     status: "completed",
     materialized_record: serializeSharedRecord(materialized.record),
     pmed_forwarded: targetDepartmentKey === "pmed" ? pmedForwardResult?.ok === true : false,
     pmed_bridge_response: pmedForwardResult,
+    clinic_forwarded: targetDepartmentKey === "clinic" ? clinicForwardResult?.ok === true : false,
+    clinic_bridge_response: clinicForwardResult,
     message:
       targetDepartmentKey === "pmed" && pmedForwardResult?.ok === true
         ? "Department flow dispatched, materialized, and forwarded into PMED."
         : targetDepartmentKey === "pmed"
           ? "Department flow dispatched and materialized. PMED bridge forwarding failed, but the report remains recorded."
+          : targetDepartmentKey === "clinic" && clinicForwardResult?.ok === true
+            ? "Department flow dispatched, materialized, and delivered to Clinic."
+            : targetDepartmentKey === "clinic"
+              ? "Department flow dispatched and materialized. Clinic HTTP delivery failed; the shared registry record is still available."
         : "Department flow dispatched and materialized into the shared record registry.",
   };
 }

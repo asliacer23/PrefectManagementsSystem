@@ -10,6 +10,10 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   process.env.DATABASE_URL ||= env.DATABASE_URL || env.SUPABASE_DB_URL;
   process.env.SUPABASE_DB_URL ||= env.SUPABASE_DB_URL;
+  // Forward all remaining .env vars so Netlify function middleware can read them via process.env.
+  for (const [key, value] of Object.entries(env)) {
+    if (!process.env[key]) process.env[key] = value;
+  }
 
   return {
     server: {
